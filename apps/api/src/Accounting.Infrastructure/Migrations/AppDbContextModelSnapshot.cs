@@ -69,6 +69,42 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("accounts", (string)null);
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.ExternalLogin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProviderUserId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Provider", "ProviderUserId")
+                        .IsUnique();
+
+                    b.ToTable("external_logins", (string)null);
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Membership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -130,6 +166,10 @@ namespace Accounting.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -137,6 +177,9 @@ namespace Accounting.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -150,10 +193,6 @@ namespace Accounting.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -182,6 +221,17 @@ namespace Accounting.Infrastructure.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.ExternalLogin", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.User", "User")
+                        .WithMany("ExternalLogins")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Membership", b =>
@@ -217,6 +267,8 @@ namespace Accounting.Infrastructure.Migrations
 
             modelBuilder.Entity("Accounting.Domain.Entities.User", b =>
                 {
+                    b.Navigation("ExternalLogins");
+
                     b.Navigation("Memberships");
                 });
 #pragma warning restore 612, 618

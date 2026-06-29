@@ -1,10 +1,14 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Accounting.Api.Middleware;
 using Accounting.Api.Services;
+using Accounting.Application.DTOs;
 using Accounting.Application.Services;
+using Accounting.Application.Validators;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Infrastructure.Repositories;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -19,11 +23,19 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<IExternalLoginRepository, ExternalLoginRepository>();
+
+// Validators
+builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
+builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateAccountDto>, CreateAccountDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateProfileDto>, UpdateProfileDtoValidator>();
 
 // Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"]
@@ -32,6 +44,7 @@ var jwtSecret = builder.Configuration["Jwt:Secret"]
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
+        opt.MapInboundClaims = false; // Keep JWT claim names as-is (e.g. "sub" stays "sub")
         opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -45,7 +58,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddCors(o => o.AddPolicy("web", p =>
     p.WithOrigins(builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000")
@@ -53,7 +67,6 @@ builder.Services.AddCors(o => o.AddPolicy("web", p =>
 
 var app = builder.Build();
 
-// Auto-migrate on startup in Development
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

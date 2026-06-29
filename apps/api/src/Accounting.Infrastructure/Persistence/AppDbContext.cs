@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

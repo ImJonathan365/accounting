@@ -11,9 +11,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         b.ToTable("users");
         b.HasKey(u => u.Id);
         b.Property(u => u.Email).HasMaxLength(256).IsRequired();
-        b.Property(u => u.PasswordHash).IsRequired();
         b.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
         b.Property(u => u.LastName).HasMaxLength(100).IsRequired();
+        b.Property(u => u.AvatarUrl).HasMaxLength(500);
         b.HasIndex(u => u.Email).IsUnique();
     }
 }

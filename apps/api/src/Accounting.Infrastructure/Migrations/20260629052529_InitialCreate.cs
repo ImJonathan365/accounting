@@ -31,9 +31,10 @@ namespace Accounting.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: false),
                     FirstName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     LastName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    AvatarUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    EmailVerifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
@@ -71,6 +72,29 @@ namespace Accounting.Infrastructure.Migrations
                         name: "FK_accounts_organizations_OrganizationId",
                         column: x => x.OrganizationId,
                         principalTable: "organizations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "external_logins",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Provider = table.Column<int>(type: "integer", nullable: false),
+                    ProviderUserId = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    PasswordHash = table.Column<string>(type: "text", nullable: true),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_external_logins", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_external_logins_users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -115,6 +139,17 @@ namespace Accounting.Infrastructure.Migrations
                 column: "ParentId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_external_logins_Provider_ProviderUserId",
+                table: "external_logins",
+                columns: new[] { "Provider", "ProviderUserId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_external_logins_UserId",
+                table: "external_logins",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_memberships_OrganizationId",
                 table: "memberships",
                 column: "OrganizationId");
@@ -137,6 +172,9 @@ namespace Accounting.Infrastructure.Migrations
         {
             migrationBuilder.DropTable(
                 name: "accounts");
+
+            migrationBuilder.DropTable(
+                name: "external_logins");
 
             migrationBuilder.DropTable(
                 name: "memberships");
