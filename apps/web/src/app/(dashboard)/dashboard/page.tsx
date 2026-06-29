@@ -1,33 +1,73 @@
-import { getServerToken, getCurrentOrgId } from "@/lib/auth";
+import Link from "next/link";
+import { getCurrentOrgId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-import { redirect } from "next/navigation";
-import { logoutAction } from "@/lib/actions";
+
+const modules = [
+  {
+    href: "/dashboard/accounts",
+    title: "Catálogo de cuentas",
+    description: "Administra el plan de cuentas de tu organización.",
+    icon: "📒",
+    disabled: false,
+  },
+  {
+    href: null,
+    title: "Diario contable",
+    description: "Registra asientos de doble entrada. Próximamente.",
+    icon: "📔",
+    disabled: true,
+  },
+  {
+    href: null,
+    title: "Reportes",
+    description: "Balance general, estado de resultados y más. Próximamente.",
+    icon: "📊",
+    disabled: true,
+  },
+];
+
+const cardBase =
+  "rounded-xl border p-5 transition-all";
+const cardActive =
+  "border-slate-200 bg-white shadow-sm hover:border-indigo-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-indigo-500";
+const cardDisabled =
+  "cursor-not-allowed border-slate-200 bg-white opacity-60 dark:border-slate-700 dark:bg-slate-800";
 
 export default async function DashboardPage() {
-  const token = await getServerToken();
-  if (!token) redirect("/login");
-
   const orgId = await getCurrentOrgId();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Accounting</h1>
-          <form action={logoutAction}>
-            <button type="submit" className="text-sm text-gray-500 hover:text-gray-700">
-              Cerrar sesión
-            </button>
-          </form>
-        </div>
-      </header>
+    <>
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Inicio</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          ID de organización:{" "}
+          <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-700">
+            {orgId}
+          </code>
+        </p>
+      </div>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="mt-2 text-gray-500">Organización: {orgId}</p>
-        <p className="mt-4 text-gray-400 text-sm">Módulos en construcción...</p>
-      </main>
-    </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {modules.map((m) =>
+          m.disabled ? (
+            <div key={m.title} className={`${cardBase} ${cardDisabled}`}>
+              <div className="mb-3 text-2xl">{m.icon}</div>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">{m.title}</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{m.description}</p>
+            </div>
+          ) : (
+            <Link key={m.title} href={m.href!} className={`group ${cardBase} ${cardActive}`}>
+              <div className="mb-3 text-2xl">{m.icon}</div>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                {m.title}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{m.description}</p>
+            </Link>
+          )
+        )}
+      </div>
+    </>
   );
 }
