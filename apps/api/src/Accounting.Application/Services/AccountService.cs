@@ -1,6 +1,7 @@
 using Accounting.Application.DTOs;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Domain.Entities;
+using FluentValidation;
 
 namespace Accounting.Application.Services;
 
@@ -13,7 +14,13 @@ public interface IAccountService
 public class AccountService : IAccountService
 {
     private readonly IAccountRepository _repo;
-    public AccountService(IAccountRepository repo) => _repo = repo;
+    private readonly IValidator<CreateAccountDto> _validator;
+
+    public AccountService(IAccountRepository repo, IValidator<CreateAccountDto> validator)
+    {
+        _repo = repo;
+        _validator = validator;
+    }
 
     public async Task<List<AccountDto>> ListAsync(Guid orgId, CancellationToken ct = default)
     {
@@ -23,14 +30,16 @@ public class AccountService : IAccountService
 
     public async Task<AccountDto> CreateAsync(Guid orgId, CreateAccountDto dto, CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(dto, ct);
+
         if (await _repo.CodeExistsAsync(orgId, dto.Code, ct))
-            throw new InvalidOperationException($"El código {dto.Code} ya existe.");
+            throw new InvalidOperationException($"El código '{dto.Code}' ya existe en esta organización.");
 
         var account = new Account
         {
             OrganizationId = orgId,
-            Code = dto.Code,
-            Name = dto.Name,
+            Code = dto.Code.Trim(),
+            Name = dto.Name.Trim(),
             Type = dto.Type,
             ParentId = dto.ParentId,
             IsPostable = dto.IsPostable

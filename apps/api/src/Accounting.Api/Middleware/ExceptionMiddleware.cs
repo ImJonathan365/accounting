@@ -1,3 +1,4 @@
+using FluentValidation;
 using System.Text.Json;
 
 namespace Accounting.Api.Middleware;
@@ -28,6 +29,24 @@ public class ExceptionMiddleware
 
     private static Task WriteErrorAsync(HttpContext ctx, Exception ex)
     {
+        ctx.Response.ContentType = "application/problem+json";
+
+        if (ex is ValidationException valEx)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            var errors = valEx.Errors
+                .GroupBy(e => char.ToLower(e.PropertyName[0]) + e.PropertyName[1..])
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+
+            return ctx.Response.WriteAsJsonAsync(new
+            {
+                type = "https://httpstatuses.com/400",
+                title = "Error de validación.",
+                status = 400,
+                errors
+            });
+        }
+
         var (status, title) = ex switch
         {
             InvalidOperationException => (StatusCodes.Status400BadRequest, ex.Message),
@@ -36,15 +55,11 @@ public class ExceptionMiddleware
         };
 
         ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = "application/problem+json";
-
-        var body = JsonSerializer.Serialize(new
+        return ctx.Response.WriteAsJsonAsync(new
         {
             type = $"https://httpstatuses.com/{status}",
             title,
             status
         });
-
-        return ctx.Response.WriteAsync(body);
     }
 }
