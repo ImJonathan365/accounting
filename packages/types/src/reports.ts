@@ -1,0 +1,82 @@
+import type { AccountType } from "./account";
+
+export interface TrialBalanceLine {
+  accountId: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  totalDebit: number;
+  totalCredit: number;
+  debitBalance: number;
+  creditBalance: number;
+}
+
+export interface TrialBalance {
+  from: string;
+  to: string;
+  lines: TrialBalanceLine[];
+  totalDebit: number;
+  totalCredit: number;
+  totalDebitBalance: number;
+  totalCreditBalance: number;
+  isBalanced: boolean;
+}
+
+// ── Balance Sheet ─────────────────────────────────────────────────────────────
+
+export interface BalanceSheetLine {
+  accountId: string;
+  code: string;
+  name: string;
+  balance: number;
+}
+
+export interface BalanceSheetSection {
+  sectionCode: string;
+  sectionName: string;
+  lines: BalanceSheetLine[];
+  subtotal: number;
+}
+
+export interface BalanceSheetGroup {
+  title: string;
+  sections: BalanceSheetSection[];
+  total: number;
+}
+
+export interface BalanceSheet {
+  asOf: string;
+  assets: BalanceSheetGroup;
+  liabilities: BalanceSheetGroup;
+  equity: BalanceSheetGroup;
+  netIncome: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+  isBalanced: boolean;
+}
+
+// ── Income Statement ──────────────────────────────────────────────────────────
+
+export interface IncomeStatementLine {
+  accountId: string;
+  code: string;
+  name: string;
+  parentCode?: string;
+  parentName?: string;
+  amount: number;
+}
+
+export interface IncomeStatementSection {
+  title: string;
+  lines: IncomeStatementLine[];
+  total: number;
+}
+
+export interface IncomeStatement {
+  from: string;
+  to: string;
+  income: IncomeStatementSection;
+  expenses: IncomeStatementSection;
+  netIncome: number;
+  isProfit: boolean;
+}
