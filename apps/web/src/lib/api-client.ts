@@ -1,6 +1,9 @@
 import { apiBaseUrl } from "./env";
 import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile, UpdateProfileRequest } from "@accounting/types";
 import type { Account, CreateAccountRequest } from "@accounting/types";
+import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, VoidJournalEntryRequest } from "@accounting/types";
+import type { TrialBalance, IncomeStatement, BalanceSheet } from "@accounting/types";
+import type { OrgSettings, UpdateOrgSettingsRequest } from "@accounting/types";
 
 export class ApiError extends Error {
   constructor(
@@ -59,6 +62,56 @@ export const apiClient = {
 
     create: (orgId: string, data: CreateAccountRequest, token: string) =>
       request<Account>(`/api/organizations/${orgId}/accounts`, { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  journal: {
+    list: (orgId: string, token: string) =>
+      request<JournalEntrySummary[]>(`/api/organizations/${orgId}/journal-entries`, {}, token),
+
+    get: (orgId: string, id: string, token: string) =>
+      request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}`, {}, token),
+
+    create: (orgId: string, data: CreateJournalEntryRequest, token: string) =>
+      request<JournalEntry>(`/api/organizations/${orgId}/journal-entries`, { method: "POST", body: JSON.stringify(data) }, token),
+
+    void: (orgId: string, id: string, data: VoidJournalEntryRequest, token: string) =>
+      request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}/void`, { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  reports: {
+    trialBalance: (orgId: string, from: string, to: string, token: string) =>
+      request<TrialBalance>(
+        `/api/organizations/${orgId}/reports/trial-balance?from=${from}&to=${to}`, {}, token),
+
+    incomeStatement: (orgId: string, from: string, to: string, token: string) =>
+      request<IncomeStatement>(
+        `/api/organizations/${orgId}/reports/income-statement?from=${from}&to=${to}`, {}, token),
+
+    balanceSheet: (orgId: string, asOf: string, token: string) =>
+      request<BalanceSheet>(
+        `/api/organizations/${orgId}/reports/balance-sheet?asOf=${asOf}`, {}, token),
+  },
+
+  settings: {
+    get: (orgId: string, token: string) =>
+      request<OrgSettings>(`/api/organizations/${orgId}/settings`, {}, token),
+
+    update: (orgId: string, data: UpdateOrgSettingsRequest, token: string) =>
+      request<OrgSettings>(
+        `/api/organizations/${orgId}/settings`,
+        { method: "PUT", body: JSON.stringify(data) },
+        token),
+  },
+
+  export: {
+    download: async (path: string, token: string): Promise<Blob> => {
+      const res = await fetch(`${apiBaseUrl}${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!res.ok) throw new ApiError(res.status, `Error ${res.status} al exportar`);
+      return res.blob();
+    },
   },
 
   get: <T>(path: string, token: string) => request<T>(path, {}, token),

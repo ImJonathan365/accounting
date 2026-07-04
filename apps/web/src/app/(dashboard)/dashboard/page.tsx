@@ -12,18 +12,18 @@ const modules = [
     disabled: false,
   },
   {
-    href: null,
+    href: "/dashboard/journal",
     title: "Diario contable",
-    description: "Registra asientos de doble entrada. Próximamente.",
+    description: "Registra asientos de doble entrada.",
     icon: "📔",
-    disabled: true,
+    disabled: false,
   },
   {
-    href: null,
+    href: "/dashboard/reports",
     title: "Reportes",
-    description: "Balance general, estado de resultados y más. Próximamente.",
+    description: "Balance de comprobación, estado de resultados y más.",
     icon: "📊",
-    disabled: true,
+    disabled: false,
   },
 ];
 

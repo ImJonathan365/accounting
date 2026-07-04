@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { logoutAction } from "@/lib/actions";
 import { getDisplayName } from "@/lib/auth";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/UserMenu";
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Inicio" },
+  { href: "/dashboard",          label: "Inicio" },
   { href: "/dashboard/accounts", label: "Cuentas" },
+  { href: "/dashboard/journal",  label: "Diario" },
+  { href: "/dashboard/reports",  label: "Reportes" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -39,23 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
-            <Link
-              href="/dashboard/profile"
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
-            >
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                {initials}
-              </div>
-              <span className="hidden sm:block">{displayName ?? "Perfil"}</span>
-            </Link>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="rounded-md px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200 transition-colors"
-              >
-                Salir
-              </button>
-            </form>
+            <UserMenu displayName={displayName} initials={initials} />
           </div>
         </div>
       </header>

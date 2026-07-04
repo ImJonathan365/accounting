@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { apiClient } from "./api-client";
-import type { CreateAccountRequest, LoginRequest, RegisterRequest, UpdateProfileRequest } from "@accounting/types";
+import type { CreateAccountRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, CreateJournalEntryRequest, VoidJournalEntryRequest, UpdateOrgSettingsRequest } from "@accounting/types";
 import { getServerToken, getCurrentOrgId } from "./auth";
 
 const TOKEN_COOKIE = "auth_token";
@@ -57,6 +57,34 @@ export async function createAccountAction(data: CreateAccountRequest) {
 
   await apiClient.accounts.create(orgId, data, token);
   revalidatePath("/dashboard/accounts");
+}
+
+export async function createJournalEntryAction(data: CreateJournalEntryRequest) {
+  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  if (!token || !orgId) throw new Error("No autenticado");
+
+  const entry = await apiClient.journal.create(orgId, data, token);
+  revalidatePath("/dashboard/journal");
+  return entry;
+}
+
+export async function voidJournalEntryAction(entryId: string, data: VoidJournalEntryRequest) {
+  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  if (!token || !orgId) throw new Error("No autenticado");
+
+  const result = await apiClient.journal.void(orgId, entryId, data, token);
+  revalidatePath("/dashboard/journal");
+  revalidatePath(`/dashboard/journal/${entryId}`);
+  return result;
+}
+
+export async function updateOrgSettingsAction(data: UpdateOrgSettingsRequest) {
+  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  if (!token || !orgId) throw new Error("No autenticado");
+
+  const result = await apiClient.settings.update(orgId, data, token);
+  revalidatePath("/dashboard/settings");
+  return result;
 }
 
 export async function updateProfileAction(data: UpdateProfileRequest) {
