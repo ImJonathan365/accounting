@@ -5,4 +5,7 @@
     <Project Path="src/Accounting.Domain/Accounting.Domain.csproj" />
     <Project Path="src/Accounting.Infrastructure/Accounting.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Accounting.Tests/Accounting.Tests.csproj" />
+  </Folder>
 </Solution>
