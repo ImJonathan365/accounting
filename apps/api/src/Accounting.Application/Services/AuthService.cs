@@ -20,6 +20,7 @@ public class AuthService : IAuthService
     private readonly IOrganizationRepository _orgs;
     private readonly IExternalLoginRepository _externalLogins;
     private readonly ITokenService _tokens;
+    private readonly IAccountSeeder _accountSeeder;
     private readonly IValidator<RegisterDto> _registerValidator;
     private readonly IValidator<LoginDto> _loginValidator;
 
@@ -28,6 +29,7 @@ public class AuthService : IAuthService
         IOrganizationRepository orgs,
         IExternalLoginRepository externalLogins,
         ITokenService tokens,
+        IAccountSeeder accountSeeder,
         IValidator<RegisterDto> registerValidator,
         IValidator<LoginDto> loginValidator)
     {
@@ -35,6 +37,7 @@ public class AuthService : IAuthService
         _orgs = orgs;
         _externalLogins = externalLogins;
         _tokens = tokens;
+        _accountSeeder = accountSeeder;
         _registerValidator = registerValidator;
         _loginValidator = loginValidator;
     }
@@ -68,6 +71,7 @@ public class AuthService : IAuthService
         await _externalLogins.AddAsync(emailLogin, ct);
         await _orgs.AddAsync(org, ct);
         await _orgs.AddMembershipAsync(membership, ct);
+        await _accountSeeder.SeedAsync(org.Id, ct);
         await _users.SaveChangesAsync(ct);
 
         // TODO: Notifications — await _notificationService.SendWelcomeAsync(user, org);

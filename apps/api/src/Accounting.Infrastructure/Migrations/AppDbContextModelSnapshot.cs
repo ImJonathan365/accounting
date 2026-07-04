@@ -105,6 +105,99 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("external_logins", (string)null);
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.JournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("VoidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VoidedByEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("VoidsEntryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("VoidedByEntryId");
+
+                    b.HasIndex("VoidsEntryId");
+
+                    b.ToTable("journal_entries", (string)null);
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.JournalLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("JournalEntryId");
+
+                    b.ToTable("journal_lines", (string)null);
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Membership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -158,6 +251,62 @@ namespace Accounting.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("organizations", (string)null);
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.OrganizationSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencySymbol")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("TaxId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Theme")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId")
+                        .IsUnique();
+
+                    b.ToTable("organization_settings", (string)null);
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.User", b =>
@@ -234,6 +383,46 @@ namespace Accounting.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.JournalEntry", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Organization", "Organization")
+                        .WithMany("JournalEntries")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Accounting.Domain.Entities.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("VoidedByEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Accounting.Domain.Entities.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("VoidsEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.JournalLine", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Accounting.Domain.Entities.JournalEntry", "JournalEntry")
+                        .WithMany("Lines")
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("JournalEntry");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Membership", b =>
                 {
                     b.HasOne("Accounting.Domain.Entities.Organization", "Organization")
@@ -253,14 +442,32 @@ namespace Accounting.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.OrganizationSettings", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Organization", "Organization")
+                        .WithOne()
+                        .HasForeignKey("Accounting.Domain.Entities.OrganizationSettings", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Account", b =>
                 {
                     b.Navigation("Children");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.JournalEntry", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Organization", b =>
                 {
                     b.Navigation("Accounts");
+
+                    b.Navigation("JournalEntries");
 
                     b.Navigation("Memberships");
                 });

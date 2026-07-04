@@ -17,8 +17,19 @@ public class AccountRepository : IAccountRepository
     public Task<Account?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Accounts.FirstOrDefaultAsync(a => a.Id == id, ct);
 
+    public Task<List<Account>> GetByIdsAsync(Guid orgId, IEnumerable<Guid> ids, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        return _db.Accounts.AsNoTracking()
+            .Where(a => a.OrganizationId == orgId && idList.Contains(a.Id))
+            .ToListAsync(ct);
+    }
+
     public async Task AddAsync(Account account, CancellationToken ct = default) =>
         await _db.Accounts.AddAsync(account, ct);
+
+    public async Task AddRangeAsync(IEnumerable<Account> accounts, CancellationToken ct = default) =>
+        await _db.Accounts.AddRangeAsync(accounts, ct);
 
     public Task<bool> CodeExistsAsync(Guid orgId, string code, CancellationToken ct = default) =>
         _db.Accounts.AnyAsync(a => a.OrganizationId == orgId && a.Code == code, ct);

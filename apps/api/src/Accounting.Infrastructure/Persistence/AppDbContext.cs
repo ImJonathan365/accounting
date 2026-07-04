@@ -13,6 +13,9 @@ public class AppDbContext : DbContext
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
+    public DbSet<JournalEntry>         JournalEntries         => Set<JournalEntry>();
+    public DbSet<JournalLine>          JournalLines           => Set<JournalLine>();
+    public DbSet<OrganizationSettings> OrganizationSettings   => Set<OrganizationSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

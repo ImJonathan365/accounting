@@ -5,6 +5,7 @@ using Accounting.Api.Services;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Accounting.Application.Validators;
+using Accounting.Infrastructure.Export;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Infrastructure.Repositories;
@@ -12,6 +13,9 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,18 +28,29 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IExternalLoginRepository, ExternalLoginRepository>();
+builder.Services.AddScoped<IJournalRepository, JournalRepository>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddScoped<IOrganizationSettingsRepository, OrganizationSettingsRepository>();
 
 // Validators
 builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
 builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateAccountDto>, CreateAccountDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateProfileDto>, UpdateProfileDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateJournalEntryDto>, CreateJournalEntryDtoValidator>();
+builder.Services.AddScoped<IValidator<VoidJournalEntryDto>, VoidJournalEntryDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateOrgSettingsDto>, UpdateOrgSettingsDtoValidator>();
 
 // Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAccountSeeder, AccountSeeder>();
+builder.Services.AddScoped<IJournalService, JournalService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IOrgSettingsService, OrgSettingsService>();
+builder.Services.AddScoped<IExportService, Accounting.Infrastructure.Export.ExportService>();
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"]

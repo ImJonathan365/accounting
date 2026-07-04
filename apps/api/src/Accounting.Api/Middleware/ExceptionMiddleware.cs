@@ -49,8 +49,10 @@ public class ExceptionMiddleware
 
         var (status, title) = ex switch
         {
-            InvalidOperationException => (StatusCodes.Status400BadRequest, ex.Message),
-            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, ex.Message),
+            ArgumentException           => (StatusCodes.Status400BadRequest,    ex.Message),
+            InvalidOperationException   => (StatusCodes.Status400BadRequest,    ex.Message),
+            KeyNotFoundException        => (StatusCodes.Status404NotFound,      ex.Message),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized,  ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Error interno del servidor.")
         };
 
