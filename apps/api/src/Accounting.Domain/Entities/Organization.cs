@@ -7,4 +7,5 @@ public class Organization : BaseEntity
     public string Name { get; set; } = default!;
     public ICollection<Membership> Memberships { get; set; } = new List<Membership>();
     public ICollection<Account> Accounts { get; set; } = new List<Account>();
+    public ICollection<JournalEntry> JournalEntries { get; set; } = new List<JournalEntry>();
 }
