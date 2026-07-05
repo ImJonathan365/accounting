@@ -14,8 +14,9 @@ public class UpdateOrgSettingsDtoValidator : AbstractValidator<UpdateOrgSettings
 
         RuleFor(x => x.LogoUrl)
             .MaximumLength(500).WithMessage("La URL del logo no puede superar 500 caracteres.")
-            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out _))
-            .WithMessage("La URL del logo no es válida.")
+            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var u)
+                         && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp))
+            .WithMessage("La URL del logo debe comenzar con https:// o http://.")
             .When(x => !string.IsNullOrWhiteSpace(x.LogoUrl));
 
         RuleFor(x => x.Address)

@@ -37,7 +37,9 @@ public class OrgMembershipFilter : IAsyncActionFilter
             return;
         }
 
-        if (!await _orgs.IsOrgMemberAsync(orgId, userId))
+        // Single query: get role (null → not a member)
+        var role = await _orgs.GetMemberRoleAsync(orgId, userId);
+        if (role is null)
         {
             context.Result = new ObjectResult(new
             {
@@ -48,6 +50,9 @@ public class OrgMembershipFilter : IAsyncActionFilter
             { StatusCode = StatusCodes.Status403Forbidden };
             return;
         }
+
+        // Store role so controllers can check permissions without extra DB queries
+        context.HttpContext.Items["OrgRole"] = role;
 
         await next();
     }

@@ -1,4 +1,5 @@
 using Accounting.Api.Filters;
+using Accounting.Api.Helpers;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,11 @@ public class OrgSettingsController : ControllerBase
 
     [HttpPut]
     public async Task<ActionResult<OrgSettingsDto>> Upsert(
-        Guid orgId, [FromBody] UpdateOrgSettingsDto dto, CancellationToken ct) =>
-        Ok(await _service.UpsertAsync(orgId, dto, ct));
+        Guid orgId, [FromBody] UpdateOrgSettingsDto dto, CancellationToken ct)
+    {
+        if (!OrgAuth.HasRole(HttpContext, "owner"))
+            return Forbid();
+
+        return Ok(await _service.UpsertAsync(orgId, dto, ct));
+    }
 }

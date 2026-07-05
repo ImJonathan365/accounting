@@ -20,10 +20,39 @@ public class OrganizationRepository : IOrganizationRepository
         await _db.Memberships.AddAsync(membership, ct);
 
     public Task<Membership?> GetFirstMembershipAsync(Guid userId, CancellationToken ct = default) =>
-        _db.Memberships.AsNoTracking().FirstOrDefaultAsync(m => m.UserId == userId, ct);
+        _db.Memberships.AsNoTracking()
+            .Where(m => m.UserId == userId)
+            .OrderBy(m => m.Role == "owner" ? 0 : 1)
+            .ThenBy(m => m.CreatedAtUtc)
+            .FirstOrDefaultAsync(ct);
 
     public Task<bool> IsOrgMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default) =>
         _db.Memberships.AnyAsync(m => m.OrganizationId == orgId && m.UserId == userId, ct);
+
+    public Task<List<Membership>> GetAllMembershipsForUserAsync(Guid userId, CancellationToken ct = default) =>
+        _db.Memberships.AsNoTracking()
+            .Include(m => m.Organization)
+            .Where(m => m.UserId == userId)
+            .OrderBy(m => m.CreatedAtUtc)
+            .ToListAsync(ct);
+
+    public Task<List<Membership>> GetMembersWithUsersAsync(Guid orgId, CancellationToken ct = default) =>
+        _db.Memberships.AsNoTracking()
+            .Include(m => m.User)
+            .Where(m => m.OrganizationId == orgId)
+            .OrderBy(m => m.CreatedAtUtc)
+            .ToListAsync(ct);
+
+    public Task<Membership?> GetMemberTrackedAsync(Guid orgId, Guid userId, CancellationToken ct = default) =>
+        _db.Memberships.FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == userId, ct);
+
+    public Task<string?> GetMemberRoleAsync(Guid orgId, Guid userId, CancellationToken ct = default) =>
+        _db.Memberships
+            .Where(m => m.OrganizationId == orgId && m.UserId == userId)
+            .Select(m => (string?)m.Role)
+            .FirstOrDefaultAsync(ct);
+
+    public void RemoveMembership(Membership membership) => _db.Memberships.Remove(membership);
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }
