@@ -10,6 +10,7 @@ public interface IReportService
     Task<TrialBalanceDto>    GetTrialBalanceAsync(Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default);
     Task<IncomeStatementDto> GetIncomeStatementAsync(Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default);
     Task<BalanceSheetDto>    GetBalanceSheetAsync(Guid orgId, DateOnly asOf, CancellationToken ct = default);
+    Task<LedgerDto>          GetLedgerAsync(Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default);
 }
 
 public class ReportService : IReportService
@@ -173,6 +174,30 @@ public class ReportService : IReportService
             .ToList();
 
         return new BalanceSheetGroupDto(title, sections, sections.Sum(s => s.Subtotal));
+    }
+
+    public async Task<LedgerDto> GetLedgerAsync(
+        Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        ValidateRange(from, to);
+
+        var allAccounts = await _accounts.GetByOrganizationAsync(orgId, ct);
+        var account = allAccounts.FirstOrDefault(a => a.Id == accountId)
+            ?? throw new KeyNotFoundException($"Cuenta {accountId} no encontrada.");
+
+        var openingBalance = await _reports.GetAccountOpeningBalanceAsync(orgId, accountId, from, ct);
+        var rawLines       = await _reports.GetLedgerLinesAsync(orgId, accountId, from, to, ct);
+
+        var running = openingBalance;
+        var lines = rawLines.Select(l =>
+        {
+            running += l.Debit - l.Credit;
+            return new LedgerLineDto(l.EntryId, l.Date, l.Description, l.Reference, l.Debit, l.Credit, running);
+        }).ToList();
+
+        return new LedgerDto(
+            accountId, account.Code, account.Name, account.Type,
+            from, to, openingBalance, lines, running);
     }
 
     private static void ValidateRange(DateOnly from, DateOnly to)

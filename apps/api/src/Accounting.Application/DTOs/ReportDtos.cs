@@ -4,6 +4,36 @@ namespace Accounting.Application.DTOs;
 
 public record AccountBalanceData(Guid AccountId, decimal TotalDebit, decimal TotalCredit);
 
+public record LedgerLineData(
+    Guid     EntryId,
+    DateOnly Date,
+    string   Description,
+    string?  Reference,
+    decimal  Debit,
+    decimal  Credit);
+
+// ── Ledger ────────────────────────────────────────────────────────────────────
+
+public record LedgerLineDto(
+    Guid     EntryId,
+    DateOnly Date,
+    string   Description,
+    string?  Reference,
+    decimal  Debit,
+    decimal  Credit,
+    decimal  RunningBalance);
+
+public record LedgerDto(
+    Guid        AccountId,
+    string      AccountCode,
+    string      AccountName,
+    AccountType AccountType,
+    DateOnly    From,
+    DateOnly    To,
+    decimal     OpeningBalance,
+    IReadOnlyList<LedgerLineDto> Lines,
+    decimal     ClosingBalance);
+
 // ── Trial Balance ─────────────────────────────────────────────────────────────
 
 public record TrialBalanceLineDto(

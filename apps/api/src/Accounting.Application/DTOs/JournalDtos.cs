@@ -12,7 +12,8 @@ public record CreateJournalEntryDto(
     DateOnly Date,
     string Description,
     string? Reference,
-    List<CreateJournalLineDto> Lines);
+    List<CreateJournalLineDto> Lines,
+    bool IsDraft = false);
 
 public record JournalLineDto(
     Guid Id,
@@ -48,6 +49,12 @@ public record JournalEntrySummaryDto(
     DateTime CreatedAtUtc,
     Guid? VoidsEntryId,
     Guid? VoidedByEntryId);
+
+public record UpdateJournalEntryDto(
+    DateOnly Date,
+    string Description,
+    string? Reference,
+    List<CreateJournalLineDto> Lines);
 
 public record VoidJournalEntryDto(
     string? Reason,

@@ -47,7 +47,16 @@ public class ReportsController : ControllerBase
         return Ok(await _service.GetBalanceSheetAsync(orgId, asOf ?? today, ct));
     }
 
-    // ── Export endpoints ──────────────────────────────────────────────────────
+    [HttpGet("ledger")]
+    public async Task<ActionResult<LedgerDto>> Ledger(
+        Guid orgId, [FromQuery] Guid accountId,
+        [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return Ok(await _service.GetLedgerAsync(
+            orgId, accountId,
+            from ?? new DateOnly(today.Year, 1, 1), to ?? today, ct));
+    }
 
     [HttpGet("trial-balance/export")]
     public async Task<IActionResult> ExportTrialBalance(

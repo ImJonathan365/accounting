@@ -10,4 +10,10 @@ public interface IReportRepository
     // Cumulative from the beginning of records up to asOf (for balance sheet)
     Task<List<AccountBalanceData>> GetCumulativeBalancesAsync(
         Guid orgId, DateOnly asOf, CancellationToken ct = default);
+
+    Task<List<LedgerLineData>> GetLedgerLinesAsync(
+        Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default);
+
+    Task<decimal> GetAccountOpeningBalanceAsync(
+        Guid orgId, Guid accountId, DateOnly before, CancellationToken ct = default);
 }
