@@ -1,16 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { apiClient, ApiError } from "@/lib/api-client";
 
 interface Props {
   pdfPath: string;
   csvPath: string;
-  token: string;
   baseName: string;
 }
 
-export function ExportButton({ pdfPath, csvPath, token, baseName }: Props) {
+export function ExportButton({ pdfPath, csvPath, baseName }: Props) {
   const [loading, setLoading] = useState<"pdf" | "csv" | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -18,10 +16,15 @@ export function ExportButton({ pdfPath, csvPath, token, baseName }: Props) {
     setLoading(format);
     setError(null);
     try {
-      const path = format === "pdf" ? pdfPath : csvPath;
-      const blob = await apiClient.export.download(path, token);
-
-      // Obtener nombre de archivo del header Content-Disposition si está disponible
+      const backendPath = format === "pdf" ? pdfPath : csvPath;
+      const res = await fetch(`/api/export?path=${encodeURIComponent(backendPath)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        setError("Error al exportar. Intenta de nuevo.");
+        return;
+      }
+      const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
       a.href     = url;
@@ -30,8 +33,8 @@ export function ExportButton({ pdfPath, csvPath, token, baseName }: Props) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      setError(err instanceof ApiError ? err.message : "Error al exportar");
+    } catch {
+      setError("Error al exportar. Intenta de nuevo.");
     } finally {
       setLoading(null);
     }

@@ -1,5 +1,7 @@
+import React from "react";
 import { redirect } from "next/navigation";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
+import { PageError } from "@/components/PageError";
 import { apiClient } from "@/lib/api-client";
 import { DateRangeFilter } from "../_components/DateRangeFilter";
 import { ExportButton } from "../_components/ExportButton";
@@ -46,7 +48,12 @@ export default async function TrialBalancePage({
   const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
   if (!token || !orgId) redirect("/login");
 
-  const report = await apiClient.reports.trialBalance(orgId, from, to, token);
+  let report;
+  try {
+    report = await apiClient.reports.trialBalance(orgId, from, to, token);
+  } catch {
+    return <PageError message="No se pudo cargar el balance de comprobación." />;
+  }
 
   const grouped = Object.groupBy(report.lines, (l: TrialBalanceLine) => l.type);
   const typeOrder = ["Asset", "Liability", "Equity", "Income", "Expense"] as const;
@@ -63,7 +70,7 @@ export default async function TrialBalancePage({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <DateRangeFilter basePath="/dashboard/reports/trial-balance" from={from} to={to} />
         <ExportButton
-          token={token}
+
           baseName={`balance-comprobacion_${from}_${to}`}
           pdfPath={`/api/organizations/${orgId}/reports/trial-balance/export?from=${from}&to=${to}&format=pdf`}
           csvPath={`/api/organizations/${orgId}/reports/trial-balance/export?from=${from}&to=${to}&format=csv`}
@@ -96,7 +103,7 @@ export default async function TrialBalancePage({
             )}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-700/50">
@@ -118,7 +125,7 @@ export default async function TrialBalancePage({
                   const subtotalDebitB  = lines.reduce((s, l) => s + l.debitBalance, 0);
                   const subtotalCreditB = lines.reduce((s, l) => s + l.creditBalance,0);
                   return (
-                    <>
+                    <React.Fragment key={type}>
                       {/* Section header */}
                       <tr key={`hdr-${type}`} className="bg-slate-50/70 dark:bg-slate-700/30">
                         <td colSpan={7} className="px-4 py-1.5">
@@ -152,7 +159,7 @@ export default async function TrialBalancePage({
                         <td className="px-4 py-2 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{fmt(subtotalDebitB)}</td>
                         <td className="px-4 py-2 text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{fmt(subtotalCreditB)}</td>
                       </tr>
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

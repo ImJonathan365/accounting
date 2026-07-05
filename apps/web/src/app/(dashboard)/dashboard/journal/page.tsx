@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import { Pagination } from "@/components/Pagination";
+import { JournalFilterBar } from "./_components/JournalFilterBar";
 import type { JournalEntrySummary, JournalStatus } from "@accounting/types";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ function formatAmount(n: number) {
 export default async function JournalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; from?: string; to?: string; status?: string; search?: string }>;
 }) {
   const sp   = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
@@ -49,16 +50,29 @@ export default async function JournalPage({
   const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
   if (!token || !orgId) redirect("/login");
 
-  const result = await apiClient.journal.list(orgId, token, page, PAGE_SIZE);
+  const filters = {
+    from:   sp.from   || undefined,
+    to:     sp.to     || undefined,
+    status: sp.status || undefined,
+    search: sp.search || undefined,
+  };
+
+  const result = await apiClient.journal.list(orgId, token, page, PAGE_SIZE, filters);
   const { items: entries, total, totalPages } = result;
+
+  const filterParams = new URLSearchParams();
+  if (filters.from)   filterParams.set("from",   filters.from);
+  if (filters.to)     filterParams.set("to",     filters.to);
+  if (filters.status) filterParams.set("status", filters.status);
+  if (filters.search) filterParams.set("search", filters.search);
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Diario contable</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {total} asiento{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}
+            {total} asiento{total !== 1 ? "s" : ""} encontrado{total !== 1 ? "s" : ""}
           </p>
         </div>
         <Link
@@ -67,6 +81,10 @@ export default async function JournalPage({
         >
           + Nuevo asiento
         </Link>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+        <JournalFilterBar />
       </div>
 
       {total === 0 ? (
@@ -84,7 +102,7 @@ export default async function JournalPage({
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-700/50">
@@ -142,7 +160,11 @@ export default async function JournalPage({
             totalPages={totalPages}
             total={total}
             pageSize={PAGE_SIZE}
-            buildHref={(p) => `/dashboard/journal?page=${p}`}
+            buildHref={(p) => {
+              const params = new URLSearchParams(filterParams);
+              params.set("page", String(p));
+              return `/dashboard/journal?${params}`;
+            }}
           />
         </>
       )}

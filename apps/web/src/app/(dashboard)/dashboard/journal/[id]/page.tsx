@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getServerToken, getCurrentOrgId } from "@/lib/auth";
+import { getServerToken, getCurrentOrgId, getCurrentUserRole } from "@/lib/auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { VoidModal } from "../_components/VoidModal";
+import { PostButton } from "../_components/PostButton";
+import { DeleteDraftButton } from "../_components/DeleteDraftButton";
 import type { JournalLine, JournalStatus } from "@accounting/types";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +44,7 @@ export default async function JournalEntryDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  const [token, orgId, role] = await Promise.all([getServerToken(), getCurrentOrgId(), getCurrentUserRole()]);
   if (!token || !orgId) redirect("/login");
 
   let entry;
@@ -55,6 +57,7 @@ export default async function JournalEntryDetailPage({
 
   const isVoided    = entry.status === "Voided";
   const isVoidEntry = !!entry.voidsEntryId;
+  const canManage   = role === "owner" || role === "admin";
 
   return (
     <>
@@ -79,11 +82,41 @@ export default async function JournalEntryDetailPage({
           </div>
         </div>
 
-        {/* Action — only show void button for Posted entries that aren't themselves void counter-entries */}
-        {entry.status === "Posted" && !isVoidEntry && (
-          <VoidModal entryId={entry.id} description={entry.description} />
-        )}
+        <div className="flex flex-wrap gap-2">
+          {entry.status === "Draft" && (
+            <>
+              <Link
+                href={`/dashboard/journal/${entry.id}/edit`}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                </svg>
+                Editar
+              </Link>
+              {canManage && <DeleteDraftButton entryId={entry.id} />}
+              {canManage && <PostButton entryId={entry.id} />}
+            </>
+          )}
+          {entry.status === "Posted" && !isVoidEntry && canManage && (
+            <VoidModal entryId={entry.id} description={entry.description} />
+          )}
+        </div>
       </div>
+
+      {/* Draft banner */}
+      {entry.status === "Draft" && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/20">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-amber-800 dark:text-amber-300">
+            {canManage
+              ? <>Este asiento está en borrador. Usa el botón <strong>Registrar asiento</strong> para publicarlo en el diario.</>
+              : "Este asiento está en borrador y aún no ha sido registrado en el diario."}
+          </p>
+        </div>
+      )}
 
       {/* Void info banners */}
       {isVoidEntry && (
@@ -134,7 +167,7 @@ export default async function JournalEntryDetailPage({
       )}
 
       {/* Lines table */}
-      <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 ${isVoided ? "opacity-70" : ""}`}>
+      <div className={`overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 ${isVoided ? "opacity-70" : ""}`}>
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-700/50">

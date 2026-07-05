@@ -28,8 +28,9 @@ export function CreateJournalForm({ accounts }: { accounts: Account[] }) {
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
   const [lines, setLines] = useState<LineRow[]>([emptyLine(1), emptyLine(2)]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors]       = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const totalDebit  = lines.reduce((s, l) => s + (parseFloat(l.debit)  || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
@@ -56,7 +57,7 @@ export function CreateJournalForm({ accounts }: { accounts: Account[] }) {
     setLines((prev) => prev.filter((l) => l.id !== id));
   }
 
-  function validate() {
+  function validate(isDraft = false) {
     const e: Record<string, string> = {};
     if (!date) e.date = "La fecha es requerida.";
     if (!description.trim()) e.description = "La descripción es requerida.";
@@ -67,34 +68,39 @@ export function CreateJournalForm({ accounts }: { accounts: Account[] }) {
       if (!l.accountId) e[`line_${i}_account`] = "Selecciona una cuenta.";
       const d = parseFloat(l.debit) || 0;
       const c = parseFloat(l.credit) || 0;
-      if (d === 0 && c === 0) e[`line_${i}_amount`] = "Ingresa débito o crédito.";
-      if (d > 0 && c > 0)     e[`line_${i}_amount`] = "Solo débito o crédito, no ambos.";
+      if (!isDraft && d === 0 && c === 0) e[`line_${i}_amount`] = "Ingresa débito o crédito.";
+      if (d > 0 && c > 0) e[`line_${i}_amount`] = "Solo débito o crédito, no ambos.";
     });
 
-    if (!isBalanced) e.balance = "La suma de débitos debe ser igual a la suma de créditos.";
+    if (!isDraft && !isBalanced) e.balance = "La suma de débitos debe ser igual a la suma de créditos.";
     return e;
+  }
+
+  function buildPayload(isDraft: boolean) {
+    return {
+      date,
+      description: description.trim(),
+      reference: reference.trim() || undefined,
+      isDraft,
+      lines: lines.map((l) => ({
+        accountId: l.accountId,
+        debit:     parseFloat(l.debit)  || 0,
+        credit:    parseFloat(l.credit) || 0,
+        note:      l.note.trim() || undefined,
+      })),
+    };
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const errs = validate();
+    const errs = validate(false);
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
     setGlobalError(null);
 
     startTransition(async () => {
       try {
-        await createJournalEntryAction({
-          date,
-          description: description.trim(),
-          reference: reference.trim() || undefined,
-          lines: lines.map((l) => ({
-            accountId: l.accountId,
-            debit:     parseFloat(l.debit)  || 0,
-            credit:    parseFloat(l.credit) || 0,
-            note:      l.note.trim() || undefined,
-          })),
-        });
+        await createJournalEntryAction(buildPayload(false));
         router.push("/dashboard/journal");
       } catch (err) {
         if (err instanceof ApiError && err.fieldErrors) {
@@ -106,6 +112,28 @@ export function CreateJournalForm({ accounts }: { accounts: Account[] }) {
         }
       }
     });
+  }
+
+  async function handleSaveDraft() {
+    const errs = validate(true);
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setErrors({});
+    setGlobalError(null);
+    setSavingDraft(true);
+    try {
+      await createJournalEntryAction(buildPayload(true));
+      router.push("/dashboard/journal");
+    } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors) {
+        const mapped: Record<string, string> = {};
+        for (const [k, v] of Object.entries(err.fieldErrors)) mapped[k] = v[0];
+        setErrors(mapped);
+      } else {
+        setGlobalError(err instanceof Error ? err.message : "Error al guardar el borrador.");
+      }
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   return (
@@ -291,18 +319,27 @@ export function CreateJournalForm({ accounts }: { accounts: Account[] }) {
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <button
           type="submit"
-          disabled={isPending || !isBalanced}
+          disabled={isPending || savingDraft || !isBalanced}
           className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Guardando…" : "Registrar asiento"}
         </button>
         <button
           type="button"
+          onClick={handleSaveDraft}
+          disabled={isPending || savingDraft}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+        >
+          {savingDraft ? "Guardando…" : "Guardar borrador"}
+        </button>
+        <button
+          type="button"
           onClick={() => router.push("/dashboard/journal")}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+          disabled={isPending || savingDraft}
+          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
         >
           Cancelar
         </button>

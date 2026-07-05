@@ -1,4 +1,6 @@
+import React from "react";
 import { redirect } from "next/navigation";
+import { PageError } from "@/components/PageError";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import { DateFilter } from "../_components/DateFilter";
@@ -35,7 +37,12 @@ export default async function BalanceSheetPage({
   const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
   if (!token || !orgId) redirect("/login");
 
-  const report = await apiClient.reports.balanceSheet(orgId, asOf, token);
+  let report;
+  try {
+    report = await apiClient.reports.balanceSheet(orgId, asOf, token);
+  } catch {
+    return <PageError message="No se pudo cargar el balance general." />;
+  }
   const hasData = report.assets.total !== 0 || report.liabilities.total !== 0 || report.totalEquity !== 0;
 
   return (
@@ -48,7 +55,6 @@ export default async function BalanceSheetPage({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <DateFilter basePath="/dashboard/reports/balance-sheet" asOf={asOf} />
         <ExportButton
-          token={token}
           baseName={`balance-general_${asOf}`}
           pdfPath={`/api/organizations/${orgId}/reports/balance-sheet/export?asOf=${asOf}&format=pdf`}
           csvPath={`/api/organizations/${orgId}/reports/balance-sheet/export?asOf=${asOf}&format=csv`}
@@ -90,14 +96,14 @@ export default async function BalanceSheetPage({
               <GroupCard group={report.liabilities} color="orange" />
 
               {/* Equity with net income */}
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
                 <div className="bg-purple-50 px-4 py-3 dark:bg-purple-900/20">
                   <h3 className="font-semibold text-purple-800 dark:text-purple-300">Capital</h3>
                 </div>
                 <table className="min-w-full">
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                     {report.equity.sections.map((section: BalanceSheetSection) => (
-                      <>
+                      <React.Fragment key={section.sectionCode}>
                         {section.sectionName && (
                           <tr key={`hdr-${section.sectionCode}`} className="bg-slate-50/50 dark:bg-slate-700/20">
                             <td colSpan={2} className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -126,7 +132,7 @@ export default async function BalanceSheetPage({
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     ))}
                     {/* Net income line */}
                     <tr className={`${report.netIncome >= 0 ? "bg-green-50/50 dark:bg-green-900/10" : "bg-red-50/50 dark:bg-red-900/10"}`}>
@@ -203,14 +209,14 @@ function GroupCard({ group, color }: { group: BalanceSheetGroup; color: "blue" |
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div className={`px-4 py-3 ${headerColors[color]}`}>
         <h3 className="font-semibold">{group.title}</h3>
       </div>
       <table className="min-w-full">
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
           {group.sections.map((section: BalanceSheetSection) => (
-            <>
+            <React.Fragment key={section.sectionCode}>
               {section.sectionName && (
                 <tr key={`hdr-${section.sectionCode}`} className="bg-slate-50/50 dark:bg-slate-700/20">
                   <td colSpan={2} className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -243,7 +249,7 @@ function GroupCard({ group, color }: { group: BalanceSheetGroup; color: "blue" |
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
         <tfoot>

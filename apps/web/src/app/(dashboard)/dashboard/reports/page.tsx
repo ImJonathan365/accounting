@@ -19,6 +19,12 @@ const REPORTS = [
     description: "Compara ingresos contra gastos y calcula la utilidad o pérdida neta del período.",
     icon: "📈",
   },
+  {
+    href: "/dashboard/reports/ledger",
+    title: "Libro mayor",
+    description: "Historial completo de movimientos de una cuenta con saldo acumulado después de cada asiento.",
+    icon: "📒",
+  },
 ];
 
 export default function ReportsPage() {

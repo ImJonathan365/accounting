@@ -1,4 +1,6 @@
+import React from "react";
 import { redirect } from "next/navigation";
+import { PageError } from "@/components/PageError";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import { DateRangeFilter } from "../_components/DateRangeFilter";
@@ -45,7 +47,12 @@ export default async function IncomeStatementPage({
   const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
   if (!token || !orgId) redirect("/login");
 
-  const report = await apiClient.reports.incomeStatement(orgId, from, to, token);
+  let report;
+  try {
+    report = await apiClient.reports.incomeStatement(orgId, from, to, token);
+  } catch {
+    return <PageError message="No se pudo cargar el estado de resultados." />;
+  }
   const totalIncome = report.income.total;
 
   const incomeGroups  = groupByParent(report.income.lines);
@@ -62,7 +69,6 @@ export default async function IncomeStatementPage({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <DateRangeFilter basePath="/dashboard/reports/income-statement" from={from} to={to} />
         <ExportButton
-          token={token}
           baseName={`estado-resultados_${from}_${to}`}
           pdfPath={`/api/organizations/${orgId}/reports/income-statement/export?from=${from}&to=${to}&format=pdf`}
           csvPath={`/api/organizations/${orgId}/reports/income-statement/export?from=${from}&to=${to}&format=csv`}
@@ -140,7 +146,7 @@ function Section({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
       {/* Section header */}
       <div className={`px-4 py-3 ${headerColors[color]}`}>
         <h3 className="font-semibold">{title}</h3>
@@ -157,7 +163,7 @@ function Section({
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
           {Array.from(groups.entries()).map(([key, group]) => (
-            <>
+            <React.Fragment key={key}>
               {group.parentName && (
                 <tr key={`grp-${key}`} className="bg-slate-50/50 dark:bg-slate-700/20">
                   <td colSpan={4} className="px-4 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -187,7 +193,7 @@ function Section({
                   <td className="hidden sm:table-cell" />
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
         <tfoot>
