@@ -21,15 +21,41 @@ const TYPE_COLORS: Record<AccountType, string> = {
   Expense:   "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
+const ACCOUNT_TYPES: { value: string; label: string }[] = [
+  { value: "",          label: "Todos los tipos" },
+  { value: "Asset",     label: "Activo" },
+  { value: "Liability", label: "Pasivo" },
+  { value: "Equity",    label: "Capital" },
+  { value: "Income",    label: "Ingreso" },
+  { value: "Expense",   label: "Gasto" },
+];
+
 interface Props {
   accounts: Account[];
+  canManage?: boolean;
 }
 
-export function AccountsTable({ accounts }: Props) {
+export function AccountsTable({ accounts, canManage = false }: Props) {
   const [editing, setEditing]       = useState<Account | null>(null);
   const [pending, startTransition]  = useTransition();
   const [toggling, setToggling]     = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
+
+  // Filters
+  const [search,     setSearch]     = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+
+  const filtered = accounts.filter((a) => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!a.code.toLowerCase().includes(q) && !a.name.toLowerCase().includes(q)) return false;
+    }
+    if (typeFilter   && a.type !== typeFilter)              return false;
+    if (activeFilter === "active"   && !a.isActive)         return false;
+    if (activeFilter === "inactive" && a.isActive)          return false;
+    return true;
+  });
 
   function handleToggle(account: Account) {
     setToggling(account.id);
@@ -57,7 +83,56 @@ export function AccountsTable({ accounts }: Props) {
         </p>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      {/* Filter bar */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Buscar</label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Código o nombre…"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 w-48"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Tipo</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          >
+            {ACCOUNT_TYPES.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Estado</label>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          >
+            <option value="">Todas</option>
+            <option value="active">Activas</option>
+            <option value="inactive">Inactivas</option>
+          </select>
+        </div>
+        {(search || typeFilter || activeFilter) && (
+          <button
+            onClick={() => { setSearch(""); setTypeFilter(""); setActiveFilter(""); }}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+          >
+            Limpiar
+          </button>
+        )}
+        <p className="ml-auto text-xs text-slate-400 dark:text-slate-500 self-center">
+          {filtered.length} de {accounts.length} cuentas
+        </p>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-700/50">
@@ -66,11 +141,18 @@ export function AccountsTable({ accounts }: Props) {
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tipo</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 hidden sm:table-cell">Postable</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 hidden sm:table-cell">Estado</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Acciones</th>
+              {canManage && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Acciones</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {accounts.map((account: Account) => (
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+                  No se encontraron cuentas con los filtros aplicados.
+                </td>
+              </tr>
+            )}
+            {filtered.map((account: Account) => (
               <tr
                 key={account.id}
                 className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/30 ${!account.isActive ? "opacity-60" : ""}`}
@@ -96,6 +178,7 @@ export function AccountsTable({ accounts }: Props) {
                     <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/30 dark:text-red-400">Inactiva</span>
                   )}
                 </td>
+                {canManage && (
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
@@ -131,6 +214,7 @@ export function AccountsTable({ accounts }: Props) {
                     </button>
                   </div>
                 </td>
+                )}
               </tr>
             ))}
           </tbody>

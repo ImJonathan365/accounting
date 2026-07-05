@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { updateOrgSettingsAction } from "@/lib/actions";
 import type { OrgSettings } from "@accounting/types";
 import { ReportTheme } from "@accounting/types";
@@ -13,9 +14,10 @@ const THEMES: { value: ReportTheme; label: string; description: string; color: s
 
 interface Props {
   initialSettings: OrgSettings | null;
+  canEdit: boolean;
 }
 
-export function OrgSettingsForm({ initialSettings }: Props) {
+export function OrgSettingsForm({ initialSettings, canEdit }: Props) {
   const [form, setForm] = useState({
     companyName:    initialSettings?.companyName    ?? "",
     logoUrl:        initialSettings?.logoUrl        ?? "",
@@ -27,18 +29,17 @@ export function OrgSettingsForm({ initialSettings }: Props) {
     theme:          initialSettings?.theme          ?? ReportTheme.Professional,
   });
   const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-  const [error,  setError]  = useState<string | null>(null);
 
   const set = (field: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+  const fieldCls = canEdit ? inputCls : inputReadOnly;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canEdit) return;
     setSaving(true);
-    setSaved(false);
-    setError(null);
     try {
       await updateOrgSettingsAction({
         companyName:    form.companyName,
@@ -50,10 +51,9 @@ export function OrgSettingsForm({ initialSettings }: Props) {
         currencySymbol: form.currencySymbol,
         theme:          form.theme,
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      toast.success("Configuración guardada.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      toast.error(err instanceof Error ? err.message : "Error al guardar la configuración.");
     } finally {
       setSaving(false);
     }
@@ -67,27 +67,27 @@ export function OrgSettingsForm({ initialSettings }: Props) {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nombre de la empresa *">
             <input value={form.companyName} onChange={set("companyName")} required maxLength={200}
-              className={inputCls} placeholder="Comercial Gómez S.A." />
+              disabled={!canEdit} className={fieldCls} placeholder="Comercial Gómez S.A." />
           </Field>
           <Field label="NIT / RUC / Cédula">
             <input value={form.taxId} onChange={set("taxId")} maxLength={50}
-              className={inputCls} placeholder="900.123.456-7" />
+              disabled={!canEdit} className={fieldCls} placeholder="900.123.456-7" />
           </Field>
           <Field label="Dirección">
             <input value={form.address} onChange={set("address")} maxLength={300}
-              className={inputCls} placeholder="Calle 45 #12, Bogotá" />
+              disabled={!canEdit} className={fieldCls} placeholder="Calle 45 #12, Bogotá" />
           </Field>
           <Field label="Teléfono">
             <input value={form.phone} onChange={set("phone")} maxLength={50}
-              className={inputCls} placeholder="+57 300 000 0000" />
+              disabled={!canEdit} className={fieldCls} placeholder="+57 300 000 0000" />
           </Field>
           <Field label="Email de contacto">
             <input value={form.email} onChange={set("email")} type="email" maxLength={200}
-              className={inputCls} placeholder="info@empresa.com" />
+              disabled={!canEdit} className={fieldCls} placeholder="info@empresa.com" />
           </Field>
           <Field label="URL del logo">
             <input value={form.logoUrl} onChange={set("logoUrl")} maxLength={500}
-              className={inputCls} placeholder="https://..." />
+              disabled={!canEdit} className={fieldCls} placeholder="https://..." />
           </Field>
         </div>
       </section>
@@ -98,7 +98,7 @@ export function OrgSettingsForm({ initialSettings }: Props) {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Símbolo de moneda *">
             <input value={form.currencySymbol} onChange={set("currencySymbol")} required maxLength={10}
-              className={inputCls} placeholder="$" />
+              disabled={!canEdit} className={fieldCls} placeholder="$" />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ej: $, €, S/, Q, ₡</p>
           </Field>
         </div>
@@ -110,12 +110,15 @@ export function OrgSettingsForm({ initialSettings }: Props) {
               <button
                 key={t.value}
                 type="button"
-                onClick={() => setForm(prev => ({ ...prev, theme: t.value }))}
+                disabled={!canEdit}
+                onClick={() => canEdit && setForm(prev => ({ ...prev, theme: t.value }))}
                 className={[
                   "flex items-center gap-3 rounded-lg border p-4 text-left transition-all",
+                  !canEdit ? "cursor-default opacity-70" : "",
                   form.theme === t.value
                     ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-                    : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600",
+                    : canEdit ? "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
+                              : "border-slate-200 dark:border-slate-700",
                 ].join(" ")}
               >
                 <div className="h-8 w-8 shrink-0 rounded-md" style={{ background: t.color }} />
@@ -132,20 +135,18 @@ export function OrgSettingsForm({ initialSettings }: Props) {
         </div>
       </section>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          {error  && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {saved  && <p className="text-sm text-green-600 dark:text-green-400">Configuración guardada.</p>}
+      {/* Actions — only shown for owners */}
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-        >
-          {saving ? "Guardando…" : "Guardar cambios"}
-        </button>
-      </div>
+      )}
     </form>
   );
 }
@@ -163,3 +164,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500";
+
+const inputReadOnly =
+  "w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 cursor-default dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400";

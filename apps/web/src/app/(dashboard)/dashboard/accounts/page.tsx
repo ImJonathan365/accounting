@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getServerToken, getCurrentOrgId } from "@/lib/auth";
+import { getServerToken, getCurrentOrgId, getCurrentUserRole } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import { CreateAccountForm } from "./_components/CreateAccountForm";
 import { AccountsTable } from "./_components/AccountsTable";
@@ -7,11 +7,14 @@ import { AccountsTable } from "./_components/AccountsTable";
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
-  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  const [token, orgId, role] = await Promise.all([
+    getServerToken(), getCurrentOrgId(), getCurrentUserRole(),
+  ]);
   if (!token || !orgId) redirect("/login");
 
-  const accounts = await apiClient.accounts.list(orgId, token);
-  const active   = accounts.filter((a) => a.isActive).length;
+  const accounts   = await apiClient.accounts.list(orgId, token);
+  const active     = accounts.filter((a) => a.isActive).length;
+  const canManage  = role === "owner" || role === "admin";
 
   return (
     <>
@@ -23,7 +26,7 @@ export default async function AccountsPage() {
             {active} activa{active !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreateAccountForm accounts={accounts} />
+        {canManage && <CreateAccountForm accounts={accounts} />}
       </div>
 
       {accounts.length === 0 ? (
@@ -37,7 +40,7 @@ export default async function AccountsPage() {
           <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Usa el botón &quot;Nueva cuenta&quot; para comenzar.</p>
         </div>
       ) : (
-        <AccountsTable accounts={accounts} />
+        <AccountsTable accounts={accounts} canManage={canManage} />
       )}
     </>
   );

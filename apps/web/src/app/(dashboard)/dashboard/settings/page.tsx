@@ -1,10 +1,18 @@
+import { redirect } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
-import { getServerToken, getCurrentOrgId } from "@/lib/auth";
+import { getServerToken, getCurrentOrgId, getCurrentUserRole } from "@/lib/auth";
 import { OrgSettingsForm } from "./_components/OrgSettingsForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function SettingsPage() {
-  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
-  const settings = token && orgId ? await apiClient.settings.get(orgId, token) : null;
+  const [token, orgId, role] = await Promise.all([
+    getServerToken(), getCurrentOrgId(), getCurrentUserRole(),
+  ]);
+  if (!token || !orgId) redirect("/login");
+
+  const settings = await apiClient.settings.get(orgId, token);
+  const canEdit  = role === "owner";
 
   return (
     <>
@@ -14,7 +22,15 @@ export default async function SettingsPage() {
           Esta información aparecerá en todos los reportes exportados.
         </p>
       </div>
-      <OrgSettingsForm initialSettings={settings} />
+      {!canEdit && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+          Solo el propietario puede editar la configuración de la empresa.
+        </div>
+      )}
+      <OrgSettingsForm initialSettings={settings} canEdit={canEdit} />
     </>
   );
 }

@@ -141,7 +141,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
             {!hasData || summary!.recentEntries.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-sm text-slate-500 dark:text-slate-400">No hay asientos aún</p>
