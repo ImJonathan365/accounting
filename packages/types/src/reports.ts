@@ -1,4 +1,28 @@
 import type { AccountType } from "./account";
+import type { JournalStatus } from "./journal";
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export interface RecentEntry {
+  id: string;
+  date: string;
+  description: string;
+  reference?: string | null;
+  totalDebit: number;
+  status: JournalStatus;
+}
+
+export interface DashboardSummary {
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  netIncome: number;
+  isProfit: boolean;
+  isBalanced: boolean;
+  recentEntries: RecentEntry[];
+  currencySymbol: string;
+  periodLabel: string;
+}
 
 export interface TrialBalanceLine {
   accountId: string;

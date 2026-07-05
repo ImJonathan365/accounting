@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Accounting.Api.Filters;
 using Accounting.Api.Middleware;
 using Accounting.Api.Services;
 using Accounting.Application.DTOs;
@@ -36,10 +37,14 @@ builder.Services.AddScoped<IOrganizationSettingsRepository, OrganizationSettings
 builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
 builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateAccountDto>, CreateAccountDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateAccountDto>, UpdateAccountDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateProfileDto>, UpdateProfileDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateJournalEntryDto>, CreateJournalEntryDtoValidator>();
 builder.Services.AddScoped<IValidator<VoidJournalEntryDto>, VoidJournalEntryDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateOrgSettingsDto>, UpdateOrgSettingsDtoValidator>();
+
+// Filters
+builder.Services.AddScoped<OrgMembershipFilter>();
 
 // Services
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -51,6 +56,7 @@ builder.Services.AddScoped<IJournalService, JournalService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IOrgSettingsService, OrgSettingsService>();
 builder.Services.AddScoped<IExportService, Accounting.Infrastructure.Export.ExportService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"]

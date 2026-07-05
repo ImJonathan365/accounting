@@ -8,5 +8,6 @@ public interface IOrganizationRepository
     Task AddAsync(Organization org, CancellationToken ct = default);
     Task AddMembershipAsync(Membership membership, CancellationToken ct = default);
     Task<Membership?> GetFirstMembershipAsync(Guid userId, CancellationToken ct = default);
+    Task<bool> IsOrgMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
 }

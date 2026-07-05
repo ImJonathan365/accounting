@@ -22,5 +22,8 @@ public class OrganizationRepository : IOrganizationRepository
     public Task<Membership?> GetFirstMembershipAsync(Guid userId, CancellationToken ct = default) =>
         _db.Memberships.AsNoTracking().FirstOrDefaultAsync(m => m.UserId == userId, ct);
 
+    public Task<bool> IsOrgMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default) =>
+        _db.Memberships.AnyAsync(m => m.OrganizationId == orgId && m.UserId == userId, ct);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

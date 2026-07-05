@@ -1,3 +1,4 @@
+using Accounting.Api.Filters;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,7 @@ namespace Accounting.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[ServiceFilter(typeof(OrgMembershipFilter))]
 [Route("api/organizations/{orgId:guid}/settings")]
 public class OrgSettingsController : ControllerBase
 {
