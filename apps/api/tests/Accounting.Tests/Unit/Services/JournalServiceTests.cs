@@ -14,8 +14,9 @@ public class JournalServiceTests
 {
     private readonly IJournalRepository  _journalRepo  = Substitute.For<IJournalRepository>();
     private readonly IAccountRepository  _accountRepo  = Substitute.For<IAccountRepository>();
-    private readonly IValidator<CreateJournalEntryDto> _validator     = Substitute.For<IValidator<CreateJournalEntryDto>>();
-    private readonly IValidator<VoidJournalEntryDto>   _voidValidator = Substitute.For<IValidator<VoidJournalEntryDto>>();
+    private readonly IValidator<CreateJournalEntryDto> _validator       = Substitute.For<IValidator<CreateJournalEntryDto>>();
+    private readonly IValidator<UpdateJournalEntryDto> _updateValidator = Substitute.For<IValidator<UpdateJournalEntryDto>>();
+    private readonly IValidator<VoidJournalEntryDto>   _voidValidator   = Substitute.For<IValidator<VoidJournalEntryDto>>();
     private readonly JournalService _sut;
 
     private static readonly Guid OrgId  = Guid.NewGuid();
@@ -24,10 +25,11 @@ public class JournalServiceTests
 
     public JournalServiceTests()
     {
-        _sut = new JournalService(_journalRepo, _accountRepo, _validator, _voidValidator);
+        _sut = new JournalService(_journalRepo, _accountRepo, _validator, _updateValidator, _voidValidator);
 
-        // Both validators pass by default
         _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
+            .Returns(new ValidationResult());
+        _updateValidator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
         _voidValidator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
@@ -163,7 +165,11 @@ public class JournalServiceTests
             }
         };
 
-        _journalRepo.GetPagedAsync(OrgId, 1, 25, Arg.Any<CancellationToken>())
+        _journalRepo.GetPagedAsync(
+                OrgId, 1, 25,
+                Arg.Any<DateOnly?>(), Arg.Any<DateOnly?>(),
+                Arg.Any<JournalStatus?>(), Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
             .Returns((new List<JournalEntry> { entry }, 1));
 
         var result = await _sut.ListAsync(OrgId, 1, 25);
