@@ -8,7 +8,7 @@ namespace Accounting.Application.Services;
 
 public interface IJournalService
 {
-    Task<List<JournalEntrySummaryDto>> ListAsync(Guid orgId, CancellationToken ct = default);
+    Task<PagedResult<JournalEntrySummaryDto>> ListAsync(Guid orgId, int page, int pageSize, CancellationToken ct = default);
     Task<JournalEntryDto> GetByIdAsync(Guid id, Guid orgId, CancellationToken ct = default);
     Task<JournalEntryDto> CreateAsync(Guid orgId, CreateJournalEntryDto dto, CancellationToken ct = default);
     Task<JournalEntryDto> VoidAsync(Guid orgId, Guid entryId, VoidJournalEntryDto dto, CancellationToken ct = default);
@@ -33,10 +33,14 @@ public class JournalService : IJournalService
         _voidValidator   = voidValidator;
     }
 
-    public async Task<List<JournalEntrySummaryDto>> ListAsync(Guid orgId, CancellationToken ct = default)
+    public async Task<PagedResult<JournalEntrySummaryDto>> ListAsync(
+        Guid orgId, int page, int pageSize, CancellationToken ct = default)
     {
-        var entries = await _journal.GetByOrganizationAsync(orgId, ct);
-        return entries.Select(MapSummary).ToList();
+        var (items, total) = await _journal.GetPagedAsync(orgId, page, pageSize, ct);
+        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+        return new PagedResult<JournalEntrySummaryDto>(
+            items.Select(MapSummary).ToList(),
+            total, page, pageSize, totalPages);
     }
 
     public async Task<JournalEntryDto> GetByIdAsync(Guid id, Guid orgId, CancellationToken ct = default)
@@ -55,6 +59,11 @@ public class JournalService : IJournalService
 
         if (accounts.Count != accountIds.Count)
             throw new InvalidOperationException("Una o más cuentas no existen en esta organización.");
+
+        var inactive = accounts.Where(a => !a.IsActive).Select(a => a.Code).ToList();
+        if (inactive.Count > 0)
+            throw new InvalidOperationException(
+                $"Las siguientes cuentas están inactivas: {string.Join(", ", inactive)}.");
 
         var nonPostable = accounts.Where(a => !a.IsPostable).Select(a => a.Code).ToList();
         if (nonPostable.Count > 0)

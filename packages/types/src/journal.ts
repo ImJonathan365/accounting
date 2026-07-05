@@ -56,3 +56,11 @@ export interface VoidJournalEntryRequest {
   reason:   string | null;
   voidDate: string | null;
 }
+
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}

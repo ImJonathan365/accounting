@@ -2,13 +2,7 @@ import Link from "next/link";
 import { getDisplayName } from "@/lib/auth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
-
-const NAV_LINKS = [
-  { href: "/dashboard",          label: "Inicio" },
-  { href: "/dashboard/accounts", label: "Cuentas" },
-  { href: "/dashboard/journal",  label: "Diario" },
-  { href: "/dashboard/reports",  label: "Reportes" },
-];
+import { NavLinks } from "@/components/NavLinks";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const displayName = await getDisplayName();
@@ -25,17 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-xs font-bold text-white">A</div>
               <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Accounting</span>
             </Link>
-            <nav className="hidden items-center gap-1 sm:flex">
-              {NAV_LINKS.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100 transition-colors"
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
+            <NavLinks />
           </div>
 
           <div className="flex items-center gap-2">

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { apiClient } from "./api-client";
-import type { CreateAccountRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, CreateJournalEntryRequest, VoidJournalEntryRequest, UpdateOrgSettingsRequest } from "@accounting/types";
+import type { CreateAccountRequest, UpdateAccountRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, CreateJournalEntryRequest, VoidJournalEntryRequest, UpdateOrgSettingsRequest } from "@accounting/types";
 import { getServerToken, getCurrentOrgId } from "./auth";
 
 const TOKEN_COOKIE = "auth_token";
@@ -56,6 +56,22 @@ export async function createAccountAction(data: CreateAccountRequest) {
   if (!token || !orgId) throw new Error("No autenticado");
 
   await apiClient.accounts.create(orgId, data, token);
+  revalidatePath("/dashboard/accounts");
+}
+
+export async function updateAccountAction(id: string, data: UpdateAccountRequest) {
+  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  if (!token || !orgId) throw new Error("No autenticado");
+
+  await apiClient.accounts.update(orgId, id, data, token);
+  revalidatePath("/dashboard/accounts");
+}
+
+export async function toggleAccountActiveAction(id: string) {
+  const [token, orgId] = await Promise.all([getServerToken(), getCurrentOrgId()]);
+  if (!token || !orgId) throw new Error("No autenticado");
+
+  await apiClient.accounts.toggle(orgId, id, token);
   revalidatePath("/dashboard/accounts");
 }
 

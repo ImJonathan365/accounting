@@ -1,8 +1,8 @@
 import { apiBaseUrl } from "./env";
 import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile, UpdateProfileRequest } from "@accounting/types";
-import type { Account, CreateAccountRequest } from "@accounting/types";
-import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, VoidJournalEntryRequest } from "@accounting/types";
-import type { TrialBalance, IncomeStatement, BalanceSheet } from "@accounting/types";
+import type { Account, CreateAccountRequest, UpdateAccountRequest } from "@accounting/types";
+import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, VoidJournalEntryRequest, PagedResult } from "@accounting/types";
+import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary } from "@accounting/types";
 import type { OrgSettings, UpdateOrgSettingsRequest } from "@accounting/types";
 
 export class ApiError extends Error {
@@ -62,11 +62,18 @@ export const apiClient = {
 
     create: (orgId: string, data: CreateAccountRequest, token: string) =>
       request<Account>(`/api/organizations/${orgId}/accounts`, { method: "POST", body: JSON.stringify(data) }, token),
+
+    update: (orgId: string, id: string, data: UpdateAccountRequest, token: string) =>
+      request<Account>(`/api/organizations/${orgId}/accounts/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
+
+    toggle: (orgId: string, id: string, token: string) =>
+      request<Account>(`/api/organizations/${orgId}/accounts/${id}/toggle`, { method: "PATCH" }, token),
   },
 
   journal: {
-    list: (orgId: string, token: string) =>
-      request<JournalEntrySummary[]>(`/api/organizations/${orgId}/journal-entries`, {}, token),
+    list: (orgId: string, token: string, page = 1, pageSize = 25) =>
+      request<PagedResult<JournalEntrySummary>>(
+        `/api/organizations/${orgId}/journal-entries?page=${page}&pageSize=${pageSize}`, {}, token),
 
     get: (orgId: string, id: string, token: string) =>
       request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}`, {}, token),
@@ -76,6 +83,11 @@ export const apiClient = {
 
     void: (orgId: string, id: string, data: VoidJournalEntryRequest, token: string) =>
       request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}/void`, { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  dashboard: {
+    getSummary: (orgId: string, token: string) =>
+      request<DashboardSummary>(`/api/organizations/${orgId}/dashboard`, {}, token),
   },
 
   reports: {

@@ -52,3 +52,10 @@ public record JournalEntrySummaryDto(
 public record VoidJournalEntryDto(
     string? Reason,
     DateOnly? VoidDate);
+
+public record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int Total,
+    int Page,
+    int PageSize,
+    int TotalPages);

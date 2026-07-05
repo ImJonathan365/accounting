@@ -1,3 +1,4 @@
+using Accounting.Api.Filters;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +8,7 @@ namespace Accounting.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[ServiceFilter(typeof(OrgMembershipFilter))]
 [Route("api/organizations/{orgId:guid}/journal-entries")]
 public class JournalController : ControllerBase
 {
@@ -14,8 +16,16 @@ public class JournalController : ControllerBase
     public JournalController(IJournalService service) => _service = service;
 
     [HttpGet]
-    public async Task<ActionResult<List<JournalEntrySummaryDto>>> List(Guid orgId, CancellationToken ct)
-        => Ok(await _service.ListAsync(orgId, ct));
+    public async Task<ActionResult<PagedResult<JournalEntrySummaryDto>>> List(
+        Guid orgId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        page     = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        return Ok(await _service.ListAsync(orgId, page, pageSize, ct));
+    }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<JournalEntryDto>> Get(Guid orgId, Guid id, CancellationToken ct)
