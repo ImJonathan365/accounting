@@ -8,3 +8,5 @@ public record AccountDto(
 
 public record CreateAccountDto(
     string Code, string Name, AccountType Type, Guid? ParentId, bool IsPostable = true);
+
+public record UpdateAccountDto(string Name, bool IsPostable);

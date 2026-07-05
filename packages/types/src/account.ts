@@ -17,3 +17,8 @@ export interface CreateAccountRequest {
   parentId?: string;
   isPostable?: boolean;
 }
+
+export interface UpdateAccountRequest {
+  name: string;
+  isPostable: boolean;
+}

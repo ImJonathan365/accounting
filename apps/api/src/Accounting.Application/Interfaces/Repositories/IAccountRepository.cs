@@ -9,6 +9,7 @@ public interface IAccountRepository
     Task<List<Account>> GetByIdsAsync(Guid orgId, IEnumerable<Guid> ids, CancellationToken ct = default);
     Task AddAsync(Account account, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<Account> accounts, CancellationToken ct = default);
+    Task<Account?> GetByIdTrackedAsync(Guid id, Guid orgId, CancellationToken ct = default);
     Task<bool> CodeExistsAsync(Guid orgId, string code, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
 }

@@ -9,17 +9,24 @@ public interface IAccountService
 {
     Task<List<AccountDto>> ListAsync(Guid orgId, CancellationToken ct = default);
     Task<AccountDto> CreateAsync(Guid orgId, CreateAccountDto dto, CancellationToken ct = default);
+    Task<AccountDto> UpdateAsync(Guid orgId, Guid id, UpdateAccountDto dto, CancellationToken ct = default);
+    Task<AccountDto> ToggleActiveAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class AccountService : IAccountService
 {
     private readonly IAccountRepository _repo;
-    private readonly IValidator<CreateAccountDto> _validator;
+    private readonly IValidator<CreateAccountDto> _createValidator;
+    private readonly IValidator<UpdateAccountDto> _updateValidator;
 
-    public AccountService(IAccountRepository repo, IValidator<CreateAccountDto> validator)
+    public AccountService(
+        IAccountRepository repo,
+        IValidator<CreateAccountDto> createValidator,
+        IValidator<UpdateAccountDto> updateValidator)
     {
         _repo = repo;
-        _validator = validator;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     public async Task<List<AccountDto>> ListAsync(Guid orgId, CancellationToken ct = default)
@@ -30,7 +37,7 @@ public class AccountService : IAccountService
 
     public async Task<AccountDto> CreateAsync(Guid orgId, CreateAccountDto dto, CancellationToken ct = default)
     {
-        await _validator.ValidateAndThrowAsync(dto, ct);
+        await _createValidator.ValidateAndThrowAsync(dto, ct);
 
         if (await _repo.CodeExistsAsync(orgId, dto.Code, ct))
             throw new InvalidOperationException($"El código '{dto.Code}' ya existe en esta organización.");
@@ -45,6 +52,26 @@ public class AccountService : IAccountService
             IsPostable = dto.IsPostable
         };
         await _repo.AddAsync(account, ct);
+        await _repo.SaveChangesAsync(ct);
+        return Map(account);
+    }
+
+    public async Task<AccountDto> UpdateAsync(Guid orgId, Guid id, UpdateAccountDto dto, CancellationToken ct = default)
+    {
+        await _updateValidator.ValidateAndThrowAsync(dto, ct);
+        var account = await _repo.GetByIdTrackedAsync(id, orgId, ct)
+            ?? throw new KeyNotFoundException($"Cuenta {id} no encontrada.");
+        account.Name = dto.Name.Trim();
+        account.IsPostable = dto.IsPostable;
+        await _repo.SaveChangesAsync(ct);
+        return Map(account);
+    }
+
+    public async Task<AccountDto> ToggleActiveAsync(Guid orgId, Guid id, CancellationToken ct = default)
+    {
+        var account = await _repo.GetByIdTrackedAsync(id, orgId, ct)
+            ?? throw new KeyNotFoundException($"Cuenta {id} no encontrada.");
+        account.IsActive = !account.IsActive;
         await _repo.SaveChangesAsync(ct);
         return Map(account);
     }
