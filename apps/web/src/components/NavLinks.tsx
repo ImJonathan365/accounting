@@ -3,19 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const NAV_LINKS = [
+const BASE_LINKS = [
   { href: "/dashboard",          label: "Inicio",    exact: true  },
   { href: "/dashboard/accounts", label: "Cuentas",   exact: false },
   { href: "/dashboard/journal",  label: "Diario",    exact: false },
   { href: "/dashboard/reports",  label: "Reportes",  exact: false },
+  { href: "/dashboard/team",     label: "Equipo",    exact: false },
 ];
 
-export function NavLinks() {
+export function NavLinks({ userRole }: { userRole?: string }) {
   const pathname = usePathname();
+
+  const links = [
+    ...BASE_LINKS,
+    ...(userRole === "owner"
+      ? [{ href: "/dashboard/audit", label: "Auditoría", exact: false }]
+      : []),
+  ];
 
   return (
     <nav className="hidden items-center gap-1 sm:flex">
-      {NAV_LINKS.map(({ href, label, exact }) => {
+      {links.map(({ href, label, exact }) => {
         const isActive = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link

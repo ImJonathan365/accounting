@@ -1,14 +1,20 @@
 import Link from "next/link";
-import { getDisplayName } from "@/lib/auth";
+import { getDisplayName, getCurrentUserRole, getServerToken, getCurrentOrgId } from "@/lib/auth";
+import { apiClient } from "@/lib/api-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { NavLinks } from "@/components/NavLinks";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const displayName = await getDisplayName();
+  const [displayName, userRole, token, currentOrgId] = await Promise.all([
+    getDisplayName(), getCurrentUserRole(), getServerToken(), getCurrentOrgId(),
+  ]);
+
   const initials = displayName
     ? displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
+
+  const orgs = token ? await apiClient.users.listOrgs(token).catch(() => []) : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -19,13 +25,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-xs font-bold text-white">A</div>
               <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Accounting</span>
             </Link>
-            <NavLinks />
+            <NavLinks userRole={userRole} />
           </div>
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
-            <UserMenu displayName={displayName} initials={initials} />
+            <UserMenu
+              displayName={displayName}
+              initials={initials}
+              orgs={orgs}
+              currentOrgId={currentOrgId}
+            />
           </div>
         </div>
       </header>

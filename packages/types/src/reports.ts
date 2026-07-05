@@ -104,3 +104,27 @@ export interface IncomeStatement {
   netIncome: number;
   isProfit: boolean;
 }
+
+// ── Ledger ────────────────────────────────────────────────────────────────────
+
+export interface LedgerLine {
+  entryId: string;
+  date: string;
+  description: string;
+  reference?: string | null;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface Ledger {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  from: string;
+  to: string;
+  openingBalance: number;
+  lines: LedgerLine[];
+  closingBalance: number;
+}

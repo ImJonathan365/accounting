@@ -50,6 +50,14 @@ export interface CreateJournalEntryRequest {
   description: string;
   reference?: string;
   lines: CreateJournalLineRequest[];
+  isDraft?: boolean;
+}
+
+export interface UpdateJournalEntryRequest {
+  date: string;
+  description: string;
+  reference?: string;
+  lines: CreateJournalLineRequest[];
 }
 
 export interface VoidJournalEntryRequest {

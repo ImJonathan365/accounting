@@ -1,8 +1,10 @@
 import { apiBaseUrl } from "./env";
-import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile, UpdateProfileRequest } from "@accounting/types";
+import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile, UpdateProfileRequest, UserOrg, SwitchOrgRequest } from "@accounting/types";
+import type { AuditLog } from "@accounting/types";
 import type { Account, CreateAccountRequest, UpdateAccountRequest } from "@accounting/types";
-import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, VoidJournalEntryRequest, PagedResult } from "@accounting/types";
-import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary } from "@accounting/types";
+import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, UpdateJournalEntryRequest, VoidJournalEntryRequest, PagedResult } from "@accounting/types";
+import type { Member, InviteMemberRequest, UpdateMemberRoleRequest } from "@accounting/types";
+import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary, Ledger } from "@accounting/types";
 import type { OrgSettings, UpdateOrgSettingsRequest } from "@accounting/types";
 
 export class ApiError extends Error {
@@ -13,6 +15,20 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+function statusMessage(status: number): string {
+  switch (status) {
+    case 400: return "La solicitud contiene datos inválidos.";
+    case 401: return "Tu sesión ha expirado. Por favor inicia sesión de nuevo.";
+    case 403: return "No tienes permisos para realizar esta acción.";
+    case 404: return "El recurso solicitado no existe.";
+    case 409: return "Hay un conflicto con el estado actual del recurso.";
+    case 422: return "No se pudo procesar la solicitud. Verifica los datos.";
+    case 429: return "Demasiadas solicitudes. Espera un momento antes de intentar de nuevo.";
+    case 500: return "Error interno del servidor. Intenta de nuevo más tarde.";
+    default:  return "Ocurrió un error inesperado. Intenta de nuevo.";
   }
 }
 
@@ -33,7 +49,12 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
     if (body?.errors) {
       throw new ApiError(res.status, body.title ?? "Error de validación.", body.errors);
     }
-    throw new ApiError(res.status, body?.title ?? `Error ${res.status} en ${path}`);
+    const fallback = statusMessage(res.status);
+    throw new ApiError(res.status, body?.title ?? fallback);
+  }
+
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
   }
 
   return res.json() as Promise<T>;
@@ -46,6 +67,15 @@ export const apiClient = {
 
     register: (data: RegisterRequest) =>
       request<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
+
+    switchOrg: (data: SwitchOrgRequest, token: string) =>
+      request<AuthResponse>("/api/auth/switch-org", { method: "POST", body: JSON.stringify(data) }, token),
+
+    refresh: (refreshToken: string) =>
+      request<AuthResponse>("/api/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+
+    logout: (refreshToken: string) =>
+      request<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
   },
 
   users: {
@@ -54,6 +84,9 @@ export const apiClient = {
 
     updateProfile: (data: UpdateProfileRequest, token: string) =>
       request<UserProfile>("/api/users/me", { method: "PUT", body: JSON.stringify(data) }, token),
+
+    listOrgs: (token: string) =>
+      request<UserOrg[]>("/api/users/me/organizations", {}, token),
   },
 
   accounts: {
@@ -71,15 +104,32 @@ export const apiClient = {
   },
 
   journal: {
-    list: (orgId: string, token: string, page = 1, pageSize = 25) =>
-      request<PagedResult<JournalEntrySummary>>(
-        `/api/organizations/${orgId}/journal-entries?page=${page}&pageSize=${pageSize}`, {}, token),
+    list: (orgId: string, token: string, page = 1, pageSize = 25, filters?: {
+      from?: string; to?: string; status?: string; search?: string;
+    }) => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (filters?.from)   params.set("from",   filters.from);
+      if (filters?.to)     params.set("to",     filters.to);
+      if (filters?.status) params.set("status", filters.status);
+      if (filters?.search) params.set("search", filters.search);
+      return request<PagedResult<JournalEntrySummary>>(
+        `/api/organizations/${orgId}/journal-entries?${params}`, {}, token);
+    },
 
     get: (orgId: string, id: string, token: string) =>
       request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}`, {}, token),
 
     create: (orgId: string, data: CreateJournalEntryRequest, token: string) =>
       request<JournalEntry>(`/api/organizations/${orgId}/journal-entries`, { method: "POST", body: JSON.stringify(data) }, token),
+
+    update: (orgId: string, id: string, data: UpdateJournalEntryRequest, token: string) =>
+      request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
+
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/journal-entries/${id}`, { method: "DELETE" }, token),
+
+    post: (orgId: string, id: string, token: string) =>
+      request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}/post`, { method: "POST" }, token),
 
     void: (orgId: string, id: string, data: VoidJournalEntryRequest, token: string) =>
       request<JournalEntry>(`/api/organizations/${orgId}/journal-entries/${id}/void`, { method: "POST", body: JSON.stringify(data) }, token),
@@ -102,6 +152,10 @@ export const apiClient = {
     balanceSheet: (orgId: string, asOf: string, token: string) =>
       request<BalanceSheet>(
         `/api/organizations/${orgId}/reports/balance-sheet?asOf=${asOf}`, {}, token),
+
+    ledger: (orgId: string, accountId: string, from: string, to: string, token: string) =>
+      request<Ledger>(
+        `/api/organizations/${orgId}/reports/ledger?accountId=${accountId}&from=${from}&to=${to}`, {}, token),
   },
 
   settings: {
@@ -124,6 +178,23 @@ export const apiClient = {
       if (!res.ok) throw new ApiError(res.status, `Error ${res.status} al exportar`);
       return res.blob();
     },
+  },
+
+  members: {
+    list: (orgId: string, token: string) =>
+      request<Member[]>(`/api/organizations/${orgId}/members`, {}, token),
+    invite: (orgId: string, data: InviteMemberRequest, token: string) =>
+      request<Member>(`/api/organizations/${orgId}/members`, { method: "POST", body: JSON.stringify(data) }, token),
+    updateRole: (orgId: string, userId: string, data: UpdateMemberRoleRequest, token: string) =>
+      request<Member>(`/api/organizations/${orgId}/members/${userId}/role`, { method: "PUT", body: JSON.stringify(data) }, token),
+    remove: (orgId: string, userId: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/members/${userId}`, { method: "DELETE" }, token),
+  },
+
+  audit: {
+    list: (orgId: string, token: string, page = 1, pageSize = 50) =>
+      request<PagedResult<AuditLog>>(
+        `/api/organizations/${orgId}/audit?page=${page}&pageSize=${pageSize}`, {}, token),
   },
 
   get: <T>(path: string, token: string) => request<T>(path, {}, token),

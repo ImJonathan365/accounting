@@ -15,6 +15,8 @@ export interface AuthResponse {
   accessToken: string;
   tokenType: string;
   expiresIn: number;
+  refreshToken: string;
+  refreshExpiresIn: number;
   user: AuthUser;
   organization: AuthOrganization;
 }
@@ -45,4 +47,14 @@ export interface UserProfile {
 export interface UpdateProfileRequest {
   firstName: string;
   lastName: string;
+}
+
+export interface UserOrg {
+  id:   string;
+  name: string;
+  role: string;
+}
+
+export interface SwitchOrgRequest {
+  orgId: string;
 }
