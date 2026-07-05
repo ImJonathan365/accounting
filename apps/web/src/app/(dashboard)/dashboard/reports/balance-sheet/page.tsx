@@ -50,9 +50,8 @@ export default async function BalanceSheetPage({
         <ExportButton
           token={token}
           baseName={`balance-general_${asOf}`}
-          buildPath={(fmt) =>
-            `/api/organizations/${orgId}/reports/balance-sheet/export?asOf=${asOf}&format=${fmt}`
-          }
+          pdfPath={`/api/organizations/${orgId}/reports/balance-sheet/export?asOf=${asOf}&format=pdf`}
+          csvPath={`/api/organizations/${orgId}/reports/balance-sheet/export?asOf=${asOf}&format=csv`}
         />
       </div>
 

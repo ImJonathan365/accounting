@@ -4,13 +4,13 @@ import { useState } from "react";
 import { apiClient, ApiError } from "@/lib/api-client";
 
 interface Props {
-  /** Path relativo al API, sin el baseUrl. Ej: /api/organizations/{id}/reports/trial-balance/export */
-  buildPath: (format: "pdf" | "csv") => string;
+  pdfPath: string;
+  csvPath: string;
   token: string;
-  baseName: string; // Para el nombre del archivo si el servidor no lo envía
+  baseName: string;
 }
 
-export function ExportButton({ buildPath, token, baseName }: Props) {
+export function ExportButton({ pdfPath, csvPath, token, baseName }: Props) {
   const [loading, setLoading] = useState<"pdf" | "csv" | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -18,7 +18,7 @@ export function ExportButton({ buildPath, token, baseName }: Props) {
     setLoading(format);
     setError(null);
     try {
-      const path = buildPath(format);
+      const path = format === "pdf" ? pdfPath : csvPath;
       const blob = await apiClient.export.download(path, token);
 
       // Obtener nombre de archivo del header Content-Disposition si está disponible

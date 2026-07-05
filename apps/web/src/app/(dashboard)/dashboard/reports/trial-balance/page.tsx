@@ -65,9 +65,8 @@ export default async function TrialBalancePage({
         <ExportButton
           token={token}
           baseName={`balance-comprobacion_${from}_${to}`}
-          buildPath={(fmt) =>
-            `/api/organizations/${orgId}/reports/trial-balance/export?from=${from}&to=${to}&format=${fmt}`
-          }
+          pdfPath={`/api/organizations/${orgId}/reports/trial-balance/export?from=${from}&to=${to}&format=pdf`}
+          csvPath={`/api/organizations/${orgId}/reports/trial-balance/export?from=${from}&to=${to}&format=csv`}
         />
       </div>
 
