@@ -35,7 +35,9 @@ public class ExceptionMiddleware
         {
             ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
             var errors = valEx.Errors
-                .GroupBy(e => char.ToLower(e.PropertyName[0]) + e.PropertyName[1..])
+                .GroupBy(e => e.PropertyName.Length > 0
+                    ? char.ToLower(e.PropertyName[0]) + e.PropertyName[1..]
+                    : "general")
                 .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
 
             return ctx.Response.WriteAsJsonAsync(new
