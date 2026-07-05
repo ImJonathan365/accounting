@@ -14,6 +14,8 @@ public class TokenService : ITokenService
 
     public TokenService(IConfiguration config) => _config = config;
 
+    public int ExpirySeconds => int.Parse(_config["Jwt:ExpiryMinutes"] ?? "60") * 60;
+
     public string GenerateToken(User user, Guid organizationId, string role)
     {
         var secret = _config["Jwt:Secret"]
@@ -21,7 +23,7 @@ public class TokenService : ITokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var expiryMinutes = int.Parse(_config["Jwt:ExpiryMinutes"] ?? "60");
+        var expiryMinutes = ExpirySeconds / 60;
 
         var claims = new[]
         {

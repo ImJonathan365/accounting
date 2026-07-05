@@ -5,4 +5,5 @@ namespace Accounting.Application.Services;
 public interface ITokenService
 {
     string GenerateToken(User user, Guid organizationId, string role);
+    int ExpirySeconds { get; }
 }

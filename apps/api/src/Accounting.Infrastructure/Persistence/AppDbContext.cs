@@ -16,6 +16,8 @@ public class AppDbContext : DbContext
     public DbSet<JournalEntry>         JournalEntries         => Set<JournalEntry>();
     public DbSet<JournalLine>          JournalLines           => Set<JournalLine>();
     public DbSet<OrganizationSettings> OrganizationSettings   => Set<OrganizationSettings>();
+    public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
+    public DbSet<RefreshToken>         RefreshTokens          => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

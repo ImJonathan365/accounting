@@ -11,22 +11,26 @@ namespace Accounting.Api.Controllers;
 [Authorize]
 public class UserController : ControllerBase
 {
-    private readonly IUserService _users;
-    public UserController(IUserService users) => _users = users;
+    private readonly IUserService  _users;
+    private readonly IAuthService  _auth;
+
+    public UserController(IUserService users, IAuthService auth)
+    {
+        _users = users;
+        _auth  = auth;
+    }
+
+    private Guid CurrentUserId => Guid.Parse(User.FindFirstValue("sub")!);
 
     [HttpGet("me")]
     public async Task<IActionResult> GetProfile(CancellationToken ct)
-    {
-        var userId = Guid.Parse(User.FindFirstValue("sub")!);
-        var profile = await _users.GetProfileAsync(userId, ct);
-        return Ok(profile);
-    }
+        => Ok(await _users.GetProfileAsync(CurrentUserId, ct));
 
     [HttpPut("me")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto, CancellationToken ct)
-    {
-        var userId = Guid.Parse(User.FindFirstValue("sub")!);
-        var profile = await _users.UpdateProfileAsync(userId, dto, ct);
-        return Ok(profile);
-    }
+        => Ok(await _users.UpdateProfileAsync(CurrentUserId, dto, ct));
+
+    [HttpGet("me/organizations")]
+    public async Task<ActionResult<List<UserOrgDto>>> ListOrganizations(CancellationToken ct)
+        => Ok(await _auth.ListUserOrgsAsync(CurrentUserId, ct));
 }

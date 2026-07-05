@@ -13,8 +13,12 @@ public record AuthResponseDto(
     string AccessToken,
     string TokenType,
     int ExpiresIn,
+    string RefreshToken,
+    int RefreshExpiresIn,
     UserDto User,
     OrganizationDto Organization);
+
+public record RefreshDto(string RefreshToken);
 
 public record UserDto(Guid Id, string Email, string FirstName, string LastName);
 
@@ -30,3 +34,7 @@ public record UserProfileDto(
     DateTime CreatedAtUtc);
 
 public record UpdateProfileDto(string FirstName, string LastName);
+
+public record SwitchOrgDto(Guid OrgId);
+
+public record UserOrgDto(Guid Id, string Name, string Role);
