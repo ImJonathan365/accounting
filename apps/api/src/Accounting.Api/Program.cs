@@ -7,13 +7,11 @@ using Accounting.Api.Services;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Accounting.Application.Validators;
-using Accounting.Infrastructure.Export;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Infrastructure.Repositories;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
@@ -58,6 +56,13 @@ builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IOrganizationSettingsRepository, OrganizationSettingsRepository>();
+builder.Services.AddScoped<IAccountingPeriodRepository, AccountingPeriodRepository>();
+builder.Services.AddScoped<IYearEndClosingRepository, YearEndClosingRepository>();
+builder.Services.AddScoped<IRecurringEntryRepository, RecurringEntryRepository>();
+builder.Services.AddScoped<IBankRepository, BankRepository>();
+builder.Services.AddScoped<IContactRepository, ContactRepository>();
+builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
 
 // Validators
 builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
@@ -71,6 +76,17 @@ builder.Services.AddScoped<IValidator<VoidJournalEntryDto>, VoidJournalEntryDtoV
 builder.Services.AddScoped<IValidator<UpdateOrgSettingsDto>, UpdateOrgSettingsDtoValidator>();
 builder.Services.AddScoped<IValidator<InviteMemberDto>, InviteMemberDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateMemberRoleDto>, UpdateMemberRoleDtoValidator>();
+builder.Services.AddScoped<IValidator<ClosePeriodDto>, ClosePeriodDtoValidator>();
+builder.Services.AddScoped<IValidator<YearEndCloseRequestDto>, YearEndCloseRequestDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateRecurringEntryDto>, CreateRecurringEntryDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateRecurringEntryDto>, UpdateRecurringEntryDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateBankAccountDto>, CreateBankAccountDtoValidator>();
+builder.Services.AddScoped<IValidator<ImportBankTransactionDto>, ImportBankTransactionDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateContactDto>, CreateContactDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateInvoiceDto>, CreateInvoiceDtoValidator>();
+builder.Services.AddScoped<IValidator<CreatePaymentDto>, CreatePaymentDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateBudgetDto>, CreateBudgetDtoValidator>();
+builder.Services.AddScoped<IValidator<UpsertBudgetLineDto>, UpsertBudgetLineDtoValidator>();
 
 // Filters
 builder.Services.AddScoped<OrgMembershipFilter>();
@@ -92,6 +108,13 @@ builder.Services.AddScoped<IExportService, Accounting.Infrastructure.Export.Expo
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IPeriodService, PeriodService>();
+builder.Services.AddScoped<IYearEndClosingService, YearEndClosingService>();
+builder.Services.AddScoped<IRecurringEntryService, RecurringEntryService>();
+builder.Services.AddScoped<IBankService, BankService>();
+builder.Services.AddScoped<IContactService, ContactService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IBudgetService, BudgetService>();
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"]

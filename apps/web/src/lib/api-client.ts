@@ -4,8 +4,14 @@ import type { AuditLog } from "@accounting/types";
 import type { Account, CreateAccountRequest, UpdateAccountRequest } from "@accounting/types";
 import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, UpdateJournalEntryRequest, VoidJournalEntryRequest, PagedResult } from "@accounting/types";
 import type { Member, InviteMemberRequest, UpdateMemberRoleRequest } from "@accounting/types";
-import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary, Ledger } from "@accounting/types";
+import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary, Ledger, CashFlow } from "@accounting/types";
+import type { Period, ClosePeriodRequest } from "@accounting/types";
 import type { OrgSettings, UpdateOrgSettingsRequest } from "@accounting/types";
+import type { YearEndStatus, YearEndCloseRequest } from "@accounting/types";
+import type { RecurringEntry, CreateRecurringEntryRequest, GeneratePendingResult } from "@accounting/types";
+import type { BankAccount, BankReconciliation, BankTransaction, CreateBankAccountRequest, ImportBankTransactionRow } from "@accounting/types";
+import type { Contact, Invoice, CreateContactRequest, CreateInvoiceRequest, CreatePaymentRequest } from "@accounting/types";
+import type { Budget, BudgetVsActual, CreateBudgetRequest, UpsertBudgetLineRequest } from "@accounting/types";
 
 export class ApiError extends Error {
   constructor(
@@ -153,9 +159,13 @@ export const apiClient = {
       request<BalanceSheet>(
         `/api/organizations/${orgId}/reports/balance-sheet?asOf=${asOf}`, {}, token),
 
-    ledger: (orgId: string, accountId: string, from: string, to: string, token: string) =>
+    ledger: (orgId: string, accountId: string, from: string, to: string, token: string, page = 1, pageSize = 50) =>
       request<Ledger>(
-        `/api/organizations/${orgId}/reports/ledger?accountId=${accountId}&from=${from}&to=${to}`, {}, token),
+        `/api/organizations/${orgId}/reports/ledger?accountId=${accountId}&from=${from}&to=${to}&page=${page}&pageSize=${pageSize}`, {}, token),
+
+    cashFlow: (orgId: string, from: string, to: string, token: string) =>
+      request<CashFlow>(
+        `/api/organizations/${orgId}/reports/cash-flow?from=${from}&to=${to}`, {}, token),
   },
 
   settings: {
@@ -195,6 +205,108 @@ export const apiClient = {
     list: (orgId: string, token: string, page = 1, pageSize = 50) =>
       request<PagedResult<AuditLog>>(
         `/api/organizations/${orgId}/audit?page=${page}&pageSize=${pageSize}`, {}, token),
+  },
+
+  periods: {
+    list: (orgId: string, token: string, year?: number) =>
+      request<Period[]>(
+        `/api/organizations/${orgId}/periods${year ? `?year=${year}` : ""}`, {}, token),
+    close: (orgId: string, data: ClosePeriodRequest, token: string) =>
+      request<Period>(
+        `/api/organizations/${orgId}/periods/close`,
+        { method: "POST", body: JSON.stringify(data) }, token),
+    reopen: (orgId: string, year: number, month: number, token: string) =>
+      request<void>(
+        `/api/organizations/${orgId}/periods/${year}/${month}`,
+        { method: "DELETE" }, token),
+  },
+
+  yearEnd: {
+    getStatus: (orgId: string, year: number, token: string) =>
+      request<YearEndStatus>(`/api/organizations/${orgId}/year-end/${year}`, {}, token),
+    close: (orgId: string, data: YearEndCloseRequest, token: string) =>
+      request<YearEndStatus>(
+        `/api/organizations/${orgId}/year-end/close`,
+        { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  recurring: {
+    list: (orgId: string, token: string) =>
+      request<RecurringEntry[]>(`/api/organizations/${orgId}/recurring-entries`, {}, token),
+    getById: (orgId: string, id: string, token: string) =>
+      request<RecurringEntry>(`/api/organizations/${orgId}/recurring-entries/${id}`, {}, token),
+    create: (orgId: string, data: CreateRecurringEntryRequest, token: string) =>
+      request<RecurringEntry>(
+        `/api/organizations/${orgId}/recurring-entries`,
+        { method: "POST", body: JSON.stringify(data) }, token),
+    update: (orgId: string, id: string, data: Partial<RecurringEntry>, token: string) =>
+      request<RecurringEntry>(
+        `/api/organizations/${orgId}/recurring-entries/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }, token),
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(
+        `/api/organizations/${orgId}/recurring-entries/${id}`,
+        { method: "DELETE" }, token),
+    generatePending: (orgId: string, token: string) =>
+      request<GeneratePendingResult>(
+        `/api/organizations/${orgId}/recurring-entries/generate-pending`,
+        { method: "POST" }, token),
+  },
+
+  bank: {
+    list: (orgId: string, token: string) =>
+      request<BankAccount[]>(`/api/organizations/${orgId}/bank-accounts`, {}, token),
+    create: (orgId: string, data: CreateBankAccountRequest, token: string) =>
+      request<BankAccount>(`/api/organizations/${orgId}/bank-accounts`, { method: "POST", body: JSON.stringify(data) }, token),
+    getReconciliation: (orgId: string, bankAccountId: string, token: string) =>
+      request<BankReconciliation>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/reconciliation`, {}, token),
+    import: (orgId: string, bankAccountId: string, rows: ImportBankTransactionRow[], token: string) =>
+      request<BankTransaction[]>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/import`, { method: "POST", body: JSON.stringify(rows) }, token),
+    match: (orgId: string, bankAccountId: string, txId: string, journalEntryId: string, token: string) =>
+      request<BankTransaction>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/${txId}/match`, { method: "PATCH", body: JSON.stringify({ journalEntryId }) }, token),
+    exclude: (orgId: string, bankAccountId: string, txId: string, token: string) =>
+      request<BankTransaction>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/${txId}/exclude`, { method: "PATCH" }, token),
+    unmatch: (orgId: string, bankAccountId: string, txId: string, token: string) =>
+      request<BankTransaction>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/${txId}/unmatch`, { method: "PATCH" }, token),
+  },
+
+  contacts: {
+    list: (orgId: string, token: string, type?: string) =>
+      request<Contact[]>(`/api/organizations/${orgId}/contacts${type ? `?type=${type}` : ""}`, {}, token),
+    getById: (orgId: string, id: string, token: string) =>
+      request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, {}, token),
+    create: (orgId: string, data: CreateContactRequest, token: string) =>
+      request<Contact>(`/api/organizations/${orgId}/contacts`, { method: "POST", body: JSON.stringify(data) }, token),
+    update: (orgId: string, id: string, data: Partial<Contact>, token: string) =>
+      request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
+  },
+
+  invoices: {
+    list: (orgId: string, token: string, type?: string) =>
+      request<Invoice[]>(`/api/organizations/${orgId}/invoices${type ? `?type=${type}` : ""}`, {}, token),
+    getById: (orgId: string, id: string, token: string) =>
+      request<Invoice>(`/api/organizations/${orgId}/invoices/${id}`, {}, token),
+    create: (orgId: string, data: CreateInvoiceRequest, token: string) =>
+      request<Invoice>(`/api/organizations/${orgId}/invoices`, { method: "POST", body: JSON.stringify(data) }, token),
+    issue: (orgId: string, id: string, token: string) =>
+      request<Invoice>(`/api/organizations/${orgId}/invoices/${id}/issue`, { method: "POST" }, token),
+    recordPayment: (orgId: string, id: string, data: CreatePaymentRequest, token: string) =>
+      request<Invoice>(`/api/organizations/${orgId}/invoices/${id}/payments`, { method: "POST", body: JSON.stringify(data) }, token),
+    void: (orgId: string, id: string, token: string) =>
+      request<Invoice>(`/api/organizations/${orgId}/invoices/${id}/void`, { method: "POST" }, token),
+  },
+
+  budgets: {
+    list: (orgId: string, token: string) =>
+      request<Budget[]>(`/api/organizations/${orgId}/budgets`, {}, token),
+    getById: (orgId: string, id: string, token: string) =>
+      request<Budget>(`/api/organizations/${orgId}/budgets/${id}`, {}, token),
+    create: (orgId: string, data: CreateBudgetRequest, token: string) =>
+      request<Budget>(`/api/organizations/${orgId}/budgets`, { method: "POST", body: JSON.stringify(data) }, token),
+    upsertLine: (orgId: string, id: string, data: UpsertBudgetLineRequest, token: string) =>
+      request<Budget>(`/api/organizations/${orgId}/budgets/${id}/lines`, { method: "PUT", body: JSON.stringify(data) }, token),
+    getVsActual: (orgId: string, id: string, token: string) =>
+      request<BudgetVsActual>(`/api/organizations/${orgId}/budgets/${id}/vs-actual`, {}, token),
   },
 
   get: <T>(path: string, token: string) => request<T>(path, {}, token),

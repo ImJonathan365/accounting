@@ -18,6 +18,18 @@ public class AppDbContext : DbContext
     public DbSet<OrganizationSettings> OrganizationSettings   => Set<OrganizationSettings>();
     public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
     public DbSet<RefreshToken>         RefreshTokens          => Set<RefreshToken>();
+    public DbSet<AccountingPeriod>       AccountingPeriods       => Set<AccountingPeriod>();
+    public DbSet<YearEndClosing>         YearEndClosings         => Set<YearEndClosing>();
+    public DbSet<RecurringJournalEntry>  RecurringJournalEntries => Set<RecurringJournalEntry>();
+    public DbSet<RecurringJournalLine>   RecurringJournalLines   => Set<RecurringJournalLine>();
+    public DbSet<BankAccount>     BankAccounts     => Set<BankAccount>();
+    public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
+    public DbSet<Contact>         Contacts         => Set<Contact>();
+    public DbSet<Invoice>         Invoices         => Set<Invoice>();
+    public DbSet<InvoiceLine>     InvoiceLines     => Set<InvoiceLine>();
+    public DbSet<InvoicePayment>  InvoicePayments  => Set<InvoicePayment>();
+    public DbSet<Budget>          Budgets          => Set<Budget>();
+    public DbSet<BudgetLine>      BudgetLines      => Set<BudgetLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
