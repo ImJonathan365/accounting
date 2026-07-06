@@ -18,5 +18,8 @@ public class CreateAccountDtoValidator : AbstractValidator<CreateAccountDto>
 
         RuleFor(x => x.Type)
             .IsInEnum().WithMessage("El tipo de cuenta no es válido.");
+
+        RuleFor(x => x.CashFlowSection)
+            .IsInEnum().WithMessage("La sección de flujo de efectivo no es válida.");
     }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { updateAccountAction } from "@/lib/actions";
-import type { Account } from "@accounting/types";
+import type { Account, CashFlowSection } from "@accounting/types";
 
 interface Props {
   account: Account;
@@ -10,10 +10,11 @@ interface Props {
 }
 
 export function EditAccountModal({ account, onClose }: Props) {
-  const [name, setName]           = useState(account.name);
-  const [isPostable, setIsPostable] = useState(account.isPostable);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [name, setName]                     = useState(account.name);
+  const [isPostable, setIsPostable]         = useState(account.isPostable);
+  const [cashFlowSection, setCashFlowSection] = useState<CashFlowSection>(account.cashFlowSection);
+  const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState<string | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -27,7 +28,7 @@ export function EditAccountModal({ account, onClose }: Props) {
     setLoading(true);
     setError(null);
     try {
-      await updateAccountAction(account.id, { name: name.trim(), isPostable });
+      await updateAccountAction(account.id, { name: name.trim(), isPostable, cashFlowSection });
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al guardar.");
@@ -39,7 +40,7 @@ export function EditAccountModal({ account, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget && !loading) onClose(); }}
     >
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-slate-800">
         <div className="mb-4 flex items-center justify-between">
@@ -69,6 +70,23 @@ export function EditAccountModal({ account, onClose }: Props) {
               maxLength={200}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Sección flujo de efectivo
+            </label>
+            <select
+              value={cashFlowSection}
+              onChange={(e) => setCashFlowSection(e.target.value as CashFlowSection)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+            >
+              <option value="None">No aplica</option>
+              <option value="Cash">Efectivo / Bancos</option>
+              <option value="Operating">Operación</option>
+              <option value="Investing">Inversión</option>
+              <option value="Financing">Financiamiento</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-3">

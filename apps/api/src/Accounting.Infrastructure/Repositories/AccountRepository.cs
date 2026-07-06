@@ -14,8 +14,8 @@ public class AccountRepository : IAccountRepository
         _db.Accounts.AsNoTracking().Where(a => a.OrganizationId == orgId)
             .OrderBy(a => a.Code).ToListAsync(ct);
 
-    public Task<Account?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
+    public Task<Account?> GetByIdAsync(Guid id, Guid orgId, CancellationToken ct = default) =>
+        _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id && a.OrganizationId == orgId, ct);
 
     public Task<Account?> GetByIdTrackedAsync(Guid id, Guid orgId, CancellationToken ct = default) =>
         _db.Accounts.FirstOrDefaultAsync(a => a.Id == id && a.OrganizationId == orgId, ct);

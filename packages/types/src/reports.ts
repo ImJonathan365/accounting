@@ -3,6 +3,20 @@ import type { JournalStatus } from "./journal";
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
+export interface MonthlyTrend {
+  year:    number;
+  month:   number;
+  label:   string;
+  income:  number;
+  expense: number;
+}
+
+export interface FinancialRatios {
+  liquidityRatio:   number | null;
+  debtRatio:        number;
+  netProfitMargin:  number | null;
+}
+
 export interface RecentEntry {
   id: string;
   date: string;
@@ -13,15 +27,43 @@ export interface RecentEntry {
 }
 
 export interface DashboardSummary {
-  totalAssets: number;
+  totalAssets:      number;
   totalLiabilities: number;
-  totalEquity: number;
+  totalEquity:      number;
+  netIncome:        number;
+  isProfit:         boolean;
+  isBalanced:       boolean;
+  recentEntries:    RecentEntry[];
+  currencySymbol:   string;
+  periodLabel:      string;
+  monthlyTrend:     MonthlyTrend[];
+  ratios:           FinancialRatios;
+}
+
+// ── Cash Flow Statement ───────────────────────────────────────────────────────
+
+export interface CashFlowLine {
+  accountCode: string;
+  accountName: string;
+  amount:      number;
+}
+
+export interface CashFlowActivitySection {
+  title:     string;
+  lines:     CashFlowLine[];
   netIncome: number;
-  isProfit: boolean;
-  isBalanced: boolean;
-  recentEntries: RecentEntry[];
-  currencySymbol: string;
-  periodLabel: string;
+  total:     number;
+}
+
+export interface CashFlow {
+  from:          string;
+  to:            string;
+  beginningCash: number;
+  operating:     CashFlowActivitySection;
+  investing:     CashFlowActivitySection;
+  financing:     CashFlowActivitySection;
+  netChange:     number;
+  endingCash:    number;
 }
 
 export interface TrialBalanceLine {
@@ -46,7 +88,6 @@ export interface TrialBalance {
   isBalanced: boolean;
 }
 
-// ── Balance Sheet ─────────────────────────────────────────────────────────────
 
 export interface BalanceSheetLine {
   accountId: string;
@@ -79,7 +120,6 @@ export interface BalanceSheet {
   isBalanced: boolean;
 }
 
-// ── Income Statement ──────────────────────────────────────────────────────────
 
 export interface IncomeStatementLine {
   accountId: string;
@@ -105,7 +145,6 @@ export interface IncomeStatement {
   isProfit: boolean;
 }
 
-// ── Ledger ────────────────────────────────────────────────────────────────────
 
 export interface LedgerLine {
   entryId: string;
@@ -118,13 +157,17 @@ export interface LedgerLine {
 }
 
 export interface Ledger {
-  accountId: string;
-  accountCode: string;
-  accountName: string;
-  accountType: AccountType;
-  from: string;
-  to: string;
+  accountId:      string;
+  accountCode:    string;
+  accountName:    string;
+  accountType:    AccountType;
+  from:           string;
+  to:             string;
   openingBalance: number;
-  lines: LedgerLine[];
+  lines:          LedgerLine[];
   closingBalance: number;
+  totalLines:     number;
+  page:           number;
+  pageSize:       number;
+  totalPages:     number;
 }

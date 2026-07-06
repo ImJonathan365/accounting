@@ -5,7 +5,7 @@ namespace Accounting.Application.Interfaces.Repositories;
 public interface IAccountRepository
 {
     Task<List<Account>> GetByOrganizationAsync(Guid orgId, CancellationToken ct = default);
-    Task<Account?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Account?> GetByIdAsync(Guid id, Guid orgId, CancellationToken ct = default);
     Task<List<Account>> GetByIdsAsync(Guid orgId, IEnumerable<Guid> ids, CancellationToken ct = default);
     Task AddAsync(Account account, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<Account> accounts, CancellationToken ct = default);

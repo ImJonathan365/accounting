@@ -4,6 +4,8 @@ namespace Accounting.Application.DTOs;
 
 public record AccountBalanceData(Guid AccountId, decimal TotalDebit, decimal TotalCredit);
 
+public record MonthlyLineData(int Year, int Month, Guid AccountId, decimal Debit, decimal Credit);
+
 public record LedgerLineData(
     Guid     EntryId,
     DateOnly Date,
@@ -11,8 +13,6 @@ public record LedgerLineData(
     string?  Reference,
     decimal  Debit,
     decimal  Credit);
-
-// ── Ledger ────────────────────────────────────────────────────────────────────
 
 public record LedgerLineDto(
     Guid     EntryId,
@@ -32,9 +32,11 @@ public record LedgerDto(
     DateOnly    To,
     decimal     OpeningBalance,
     IReadOnlyList<LedgerLineDto> Lines,
-    decimal     ClosingBalance);
-
-// ── Trial Balance ─────────────────────────────────────────────────────────────
+    decimal     ClosingBalance,
+    int         TotalLines,
+    int         Page,
+    int         PageSize,
+    int         TotalPages);
 
 public record TrialBalanceLineDto(
     Guid   AccountId,
@@ -43,8 +45,8 @@ public record TrialBalanceLineDto(
     AccountType Type,
     decimal TotalDebit,
     decimal TotalCredit,
-    decimal DebitBalance,    // net saldo deudor  (debit > credit)
-    decimal CreditBalance);  // net saldo acreedor (credit > debit)
+    decimal DebitBalance,
+    decimal CreditBalance);
 
 public record TrialBalanceDto(
     DateOnly From,
@@ -56,17 +58,15 @@ public record TrialBalanceDto(
     decimal TotalCreditBalance,
     bool IsBalanced);
 
-// ── Balance Sheet ─────────────────────────────────────────────────────────────
-
 public record BalanceSheetLineDto(
     Guid    AccountId,
     string  Code,
     string  Name,
-    decimal Balance);         // always expressed as positive contribution to its section
+    decimal Balance);
 
 public record BalanceSheetSectionDto(
-    string  SectionCode,      // parent account code  (e.g. "1.1")
-    string  SectionName,      // parent account name  (e.g. "Activo Corriente")
+    string  SectionCode,
+    string  SectionName,
     List<BalanceSheetLineDto> Lines,
     decimal Subtotal);
 
@@ -79,13 +79,11 @@ public record BalanceSheetDto(
     DateOnly AsOf,
     BalanceSheetGroupDto Assets,
     BalanceSheetGroupDto Liabilities,
-    BalanceSheetGroupDto Equity,          // equity account balances only
-    decimal NetIncome,                    // income – expenses, shown as "Utilidad acumulada"
-    decimal TotalEquity,                  // Equity.Total + NetIncome
+    BalanceSheetGroupDto Equity,
+    decimal NetIncome,
+    decimal TotalEquity,
     decimal TotalLiabilitiesAndEquity,
     bool IsBalanced);
-
-// ── Income Statement ──────────────────────────────────────────────────────────
 
 public record IncomeStatementLineDto(
     Guid    AccountId,

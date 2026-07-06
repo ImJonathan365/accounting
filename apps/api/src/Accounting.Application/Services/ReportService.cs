@@ -10,7 +10,8 @@ public interface IReportService
     Task<TrialBalanceDto>    GetTrialBalanceAsync(Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default);
     Task<IncomeStatementDto> GetIncomeStatementAsync(Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default);
     Task<BalanceSheetDto>    GetBalanceSheetAsync(Guid orgId, DateOnly asOf, CancellationToken ct = default);
-    Task<LedgerDto>          GetLedgerAsync(Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default);
+    Task<LedgerDto>     GetLedgerAsync(Guid orgId, Guid accountId, DateOnly from, DateOnly to, int page = 1, int pageSize = 50, CancellationToken ct = default);
+    Task<CashFlowDto>   GetCashFlowAsync(Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default);
 }
 
 public class ReportService : IReportService
@@ -177,27 +178,110 @@ public class ReportService : IReportService
     }
 
     public async Task<LedgerDto> GetLedgerAsync(
-        Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default)
+        Guid orgId, Guid accountId, DateOnly from, DateOnly to,
+        int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         ValidateRange(from, to);
+        if (page    < 1) page     = 1;
+        if (pageSize < 1) pageSize = 50;
 
         var allAccounts = await _accounts.GetByOrganizationAsync(orgId, ct);
         var account = allAccounts.FirstOrDefault(a => a.Id == accountId)
             ?? throw new KeyNotFoundException($"Cuenta {accountId} no encontrada.");
 
         var openingBalance = await _reports.GetAccountOpeningBalanceAsync(orgId, accountId, from, ct);
-        var rawLines       = await _reports.GetLedgerLinesAsync(orgId, accountId, from, to, ct);
 
-        var running = openingBalance;
+        var skip = (page - 1) * pageSize;
+        var (rawLines, total) = await _reports.GetLedgerLinesPagedAsync(orgId, accountId, from, to, page, pageSize, ct);
+
+        // Balance accumulated by lines BEFORE this page (within the date range)
+        var balanceBeforePage = skip > 0
+            ? await _reports.GetLedgerBalanceInRangeAsync(orgId, accountId, from, to, skip, ct)
+            : 0m;
+
+        var pageOpeningBalance = openingBalance + balanceBeforePage;
+        var running = pageOpeningBalance;
         var lines = rawLines.Select(l =>
         {
             running += l.Debit - l.Credit;
             return new LedgerLineDto(l.EntryId, l.Date, l.Description, l.Reference, l.Debit, l.Credit, running);
         }).ToList();
 
+        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+
         return new LedgerDto(
             accountId, account.Code, account.Name, account.Type,
-            from, to, openingBalance, lines, running);
+            from, to, openingBalance, lines, running,
+            total, page, pageSize, totalPages);
+    }
+
+    public async Task<CashFlowDto> GetCashFlowAsync(
+        Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        ValidateRange(from, to);
+
+        var allAccounts  = await _accounts.GetByOrganizationAsync(orgId, ct);
+        var beginOf      = from.AddDays(-1);
+        var beginBalances = await _reports.GetCumulativeBalancesAsync(orgId, beginOf, ct);
+        var endBalances   = await _reports.GetCumulativeBalancesAsync(orgId, to, ct);
+        var periodBalances = await _reports.GetAccountBalancesAsync(orgId, from, to, ct);
+
+        var beginMap = beginBalances.ToDictionary(b => b.AccountId);
+        var endMap   = endBalances.ToDictionary(b => b.AccountId);
+        var periodMap = periodBalances.ToDictionary(b => b.AccountId);
+
+        // Compute current balance for an account from its cumulative data
+        static decimal GetBalance(Guid id, Dictionary<Guid, AccountBalanceData> map, AccountType type)
+        {
+            if (!map.TryGetValue(id, out var b)) return 0m;
+            return type == AccountType.Asset || type == AccountType.Expense
+                ? b.TotalDebit - b.TotalCredit
+                : b.TotalCredit - b.TotalDebit;
+        }
+
+        // Cash: beginning and ending balance
+        var cashAccounts = allAccounts.Where(a => a.CashFlowSection == CashFlowSection.Cash).ToList();
+        var beginCash = cashAccounts.Sum(a => GetBalance(a.Id, beginMap, a.Type));
+        var endCash   = cashAccounts.Sum(a => GetBalance(a.Id, endMap,   a.Type));
+
+        // Net Income (income - expense for the period)
+        decimal periodIncome   = allAccounts
+            .Where(a => a.Type == AccountType.Income)
+            .Sum(a => periodMap.TryGetValue(a.Id, out var b) ? b.TotalCredit - b.TotalDebit : 0m);
+        decimal periodExpenses = allAccounts
+            .Where(a => a.Type == AccountType.Expense)
+            .Sum(a => periodMap.TryGetValue(a.Id, out var b) ? b.TotalDebit - b.TotalCredit : 0m);
+        decimal netIncome = periodIncome - periodExpenses;
+
+        // Build a cash flow section from accounts with a given CashFlowSection tag
+        CashFlowSectionDto BuildSection(string title, CashFlowSection section, decimal sectionNetIncome = 0m)
+        {
+            var accounts = allAccounts.Where(a => a.CashFlowSection == section).ToList();
+            var lines = new List<CashFlowLineDto>();
+
+            foreach (var acc in accounts)
+            {
+                var beginBal = GetBalance(acc.Id, beginMap, acc.Type);
+                var endBal   = GetBalance(acc.Id, endMap,   acc.Type);
+                var change   = endBal - beginBal;
+
+                // For assets: increase = cash outflow (negative); for liabilities/equity: increase = cash inflow (positive)
+                var cashEffect = acc.Type == AccountType.Asset ? -change : change;
+
+                if (cashEffect != 0m)
+                    lines.Add(new CashFlowLineDto(acc.Code, acc.Name, cashEffect));
+            }
+
+            var adjustments = lines.Sum(l => l.Amount);
+            return new CashFlowSectionDto(title, lines, sectionNetIncome, sectionNetIncome + adjustments);
+        }
+
+        var operating  = BuildSection("Actividades de Operación",    CashFlowSection.Operating, netIncome);
+        var investing  = BuildSection("Actividades de Inversión",    CashFlowSection.Investing);
+        var financing  = BuildSection("Actividades de Financiamiento", CashFlowSection.Financing);
+        var netChange  = operating.Total + investing.Total + financing.Total;
+
+        return new CashFlowDto(from, to, beginCash, operating, investing, financing, netChange, endCash);
     }
 
     private static void ValidateRange(DateOnly from, DateOnly to)

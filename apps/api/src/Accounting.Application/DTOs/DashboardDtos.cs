@@ -10,6 +10,13 @@ public record RecentEntryDto(
     decimal TotalDebit,
     JournalStatus Status);
 
+public record MonthlyTrendDto(int Year, int Month, string Label, decimal Income, decimal Expense);
+
+public record FinancialRatiosDto(
+    decimal? LiquidityRatio,
+    decimal  DebtRatio,
+    decimal? NetProfitMargin);
+
 public record DashboardSummaryDto(
     decimal TotalAssets,
     decimal TotalLiabilities,
@@ -19,4 +26,6 @@ public record DashboardSummaryDto(
     bool IsBalanced,
     List<RecentEntryDto> RecentEntries,
     string CurrencySymbol,
-    string PeriodLabel);
+    string PeriodLabel,
+    List<MonthlyTrendDto> MonthlyTrend,
+    FinancialRatiosDto Ratios);

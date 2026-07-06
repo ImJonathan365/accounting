@@ -12,4 +12,7 @@ public interface IExportService
 
     Task<ExportResult> ExportBalanceSheetAsync(
         Guid orgId, DateOnly asOf, string format, CancellationToken ct = default);
+
+    Task<ExportResult> ExportCashFlowAsync(
+        Guid orgId, DateOnly from, DateOnly to, string format, CancellationToken ct = default);
 }

@@ -44,12 +44,13 @@ public class AccountService : IAccountService
 
         var account = new Account
         {
-            OrganizationId = orgId,
-            Code = dto.Code.Trim(),
-            Name = dto.Name.Trim(),
-            Type = dto.Type,
-            ParentId = dto.ParentId,
-            IsPostable = dto.IsPostable
+            OrganizationId  = orgId,
+            Code            = dto.Code.Trim(),
+            Name            = dto.Name.Trim(),
+            Type            = dto.Type,
+            ParentId        = dto.ParentId,
+            IsPostable      = dto.IsPostable,
+            CashFlowSection = dto.CashFlowSection,
         };
         await _repo.AddAsync(account, ct);
         await _repo.SaveChangesAsync(ct);
@@ -61,8 +62,9 @@ public class AccountService : IAccountService
         await _updateValidator.ValidateAndThrowAsync(dto, ct);
         var account = await _repo.GetByIdTrackedAsync(id, orgId, ct)
             ?? throw new KeyNotFoundException($"Cuenta {id} no encontrada.");
-        account.Name = dto.Name.Trim();
-        account.IsPostable = dto.IsPostable;
+        account.Name            = dto.Name.Trim();
+        account.IsPostable      = dto.IsPostable;
+        account.CashFlowSection = dto.CashFlowSection;
         await _repo.SaveChangesAsync(ct);
         return Map(account);
     }
@@ -77,5 +79,5 @@ public class AccountService : IAccountService
     }
 
     private static AccountDto Map(Account a) =>
-        new(a.Id, a.Code, a.Name, a.Type, a.ParentId, a.IsPostable, a.IsActive);
+        new(a.Id, a.Code, a.Name, a.Type, a.ParentId, a.IsPostable, a.IsActive, a.CashFlowSection);
 }

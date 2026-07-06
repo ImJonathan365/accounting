@@ -37,10 +37,12 @@ function BalanceCell({ value }: { value: number }) {
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default async function LedgerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ accountId?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ accountId?: string; from?: string; to?: string; page?: string }>;
 }) {
   const sp = await searchParams;
 
@@ -51,13 +53,14 @@ export default async function LedgerPage({
 
   const fromDate = sp.from || firstOfYear();
   const toDate   = sp.to   || today();
+  const page     = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
   let ledger: Ledger | null = null;
   let error: string | null  = null;
 
   if (sp.accountId) {
     try {
-      ledger = await apiClient.reports.ledger(orgId, sp.accountId, fromDate, toDate, token);
+      ledger = await apiClient.reports.ledger(orgId, sp.accountId, fromDate, toDate, token, page, PAGE_SIZE);
     } catch (e) {
       error = e instanceof Error ? e.message : "Error al cargar el libro mayor.";
     }
@@ -184,7 +187,7 @@ export default async function LedgerPage({
                   {/* Closing balance row */}
                   <tr className="bg-slate-50 dark:bg-slate-700/30 font-semibold">
                     <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400" colSpan={3}>
-                      Saldo final al {fmtDate(ledger.to)} — {ledger.lines.length} movimiento{ledger.lines.length !== 1 ? "s" : ""}
+                      Saldo al cierre de página — {ledger.totalLines} movimiento{ledger.totalLines !== 1 ? "s" : ""} en total
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-sm text-slate-900 dark:text-slate-100">
                       {fmt(ledger.lines.reduce((s, l) => s + l.debit, 0))}
@@ -201,8 +204,47 @@ export default async function LedgerPage({
               </table>
             </div>
           )}
+
+          {/* Pagination */}
+          {ledger.totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+              <span>
+                Página {ledger.page} de {ledger.totalPages} · {ledger.totalLines} movimientos
+              </span>
+              <div className="flex gap-2">
+                {ledger.page > 1 && (
+                  <LedgerPageLink sp={sp} page={ledger.page - 1} label="← Anterior" />
+                )}
+                {ledger.page < ledger.totalPages && (
+                  <LedgerPageLink sp={sp} page={ledger.page + 1} label="Siguiente →" />
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </>
+  );
+}
+
+function LedgerPageLink({
+  sp, page, label,
+}: {
+  sp: Record<string, string | undefined>;
+  page: number;
+  label: string;
+}) {
+  const params = new URLSearchParams();
+  if (sp.accountId) params.set("accountId", sp.accountId);
+  if (sp.from)      params.set("from", sp.from);
+  if (sp.to)        params.set("to", sp.to);
+  params.set("page", String(page));
+  return (
+    <Link
+      href={`/dashboard/reports/ledger?${params.toString()}`}
+      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+    >
+      {label}
+    </Link>
   );
 }

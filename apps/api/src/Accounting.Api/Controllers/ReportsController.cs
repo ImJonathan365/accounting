@@ -47,15 +47,38 @@ public class ReportsController : ControllerBase
         return Ok(await _service.GetBalanceSheetAsync(orgId, asOf ?? today, ct));
     }
 
+    [HttpGet("cash-flow")]
+    public async Task<ActionResult<CashFlowDto>> CashFlow(
+        Guid orgId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return Ok(await _service.GetCashFlowAsync(
+            orgId, from ?? new DateOnly(today.Year, 1, 1), to ?? today, ct));
+    }
+
     [HttpGet("ledger")]
     public async Task<ActionResult<LedgerDto>> Ledger(
         Guid orgId, [FromQuery] Guid accountId,
-        [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
+        [FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         return Ok(await _service.GetLedgerAsync(
             orgId, accountId,
-            from ?? new DateOnly(today.Year, 1, 1), to ?? today, ct));
+            from ?? new DateOnly(today.Year, 1, 1), to ?? today,
+            page, pageSize, ct));
+    }
+
+    [HttpGet("cash-flow/export")]
+    public async Task<IActionResult> ExportCashFlow(
+        Guid orgId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
+        [FromQuery] string format = "pdf", CancellationToken ct = default)
+    {
+        var today  = DateOnly.FromDateTime(DateTime.Today);
+        var result = await _export.ExportCashFlowAsync(
+            orgId, from ?? new DateOnly(today.Year, 1, 1), to ?? today, format, ct);
+        return File(result.Data, result.ContentType, result.FileName);
     }
 
     [HttpGet("trial-balance/export")]

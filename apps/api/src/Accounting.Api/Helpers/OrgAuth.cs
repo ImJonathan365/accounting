@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace Accounting.Api.Helpers;
 
@@ -11,4 +11,7 @@ public static class OrgAuth
 
     public static bool HasRole(HttpContext ctx, params string[] roles) =>
         roles.Contains(GetRole(ctx));
+
+    public static Guid GetUserId(HttpContext ctx) =>
+        Guid.Parse(ctx.User.FindFirstValue("sub")!);
 }

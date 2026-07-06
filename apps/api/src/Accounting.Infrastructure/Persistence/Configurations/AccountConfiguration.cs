@@ -13,6 +13,7 @@ public class AccountConfiguration : IEntityTypeConfiguration<Account>
         b.Property(a => a.Code).HasMaxLength(30).IsRequired();
         b.Property(a => a.Name).HasMaxLength(150).IsRequired();
         b.Property(a => a.Type).HasConversion<int>();
+        b.Property(a => a.CashFlowSection).HasConversion<int>();
         b.HasIndex(a => new { a.OrganizationId, a.Code }).IsUnique();
         b.HasOne(a => a.Parent).WithMany(a => a.Children)
             .HasForeignKey(a => a.ParentId).OnDelete(DeleteBehavior.Restrict);

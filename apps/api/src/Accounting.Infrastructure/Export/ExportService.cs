@@ -58,6 +58,18 @@ public class ExportService : IExportService
             : new ExportResult(BalanceSheetPdf(data, settings), "application/pdf", $"{name}.pdf");
     }
 
+    public async Task<ExportResult> ExportCashFlowAsync(
+        Guid orgId, DateOnly from, DateOnly to, string format, CancellationToken ct = default)
+    {
+        var data     = await _reports.GetCashFlowAsync(orgId, from, to, ct);
+        var settings = await _settings.GetAsync(orgId, ct);
+        var name     = $"flujo-efectivo_{from:yyyy-MM-dd}_{to:yyyy-MM-dd}";
+
+        return format.ToLower() == "csv"
+            ? new ExportResult(CashFlowCsv(data, settings), "text/csv", $"{name}.csv")
+            : new ExportResult(CashFlowPdf(data, settings), "application/pdf", $"{name}.pdf");
+    }
+
     // ── Theme ─────────────────────────────────────────────────────────────────
 
     private record ThemeColors(string HeaderBg, string HeaderFg, string AccentBg, string AccentFg);
@@ -369,6 +381,97 @@ public class ExportService : IExportService
         }).GeneratePdf();
     }
 
+    // ── Cash Flow PDF ─────────────────────────────────────────────────────────
+
+    private static byte[] CashFlowPdf(CashFlowDto data, OrgSettingsDto s)
+    {
+        var theme  = GetTheme(s.Theme);
+        var period = $"Del {data.From:dd/MM/yyyy} al {data.To:dd/MM/yyyy}";
+        var sym    = s.CurrencySymbol;
+
+        return Document.Create(doc =>
+        {
+            doc.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1.5f, Unit.Centimetre);
+                page.Header().Element(c => Header(c, s, theme, "Estado de Flujo de Efectivo", period));
+                page.Content().PaddingTop(12).Column(col =>
+                {
+                    col.Item().PaddingBottom(4).Text("Método Indirecto")
+                       .FontSize(9).Italic().FontColor("#64748b");
+
+                    // Summary row
+                    col.Item().Background(theme.AccentBg).Padding(6).Row(row =>
+                    {
+                        row.RelativeItem().Text("Saldo inicial de efectivo").Bold().FontSize(9).FontColor(theme.AccentFg);
+                        row.AutoItem().Text(Acct(data.BeginningCash, sym)).Bold().FontSize(9).FontColor(theme.AccentFg);
+                    });
+                    col.Item().Height(8);
+
+                    void Section(CashFlowSectionDto sec, bool showNetIncome)
+                    {
+                        col.Item().Background(theme.AccentBg).Padding(6)
+                           .Text(sec.Title).Bold().FontSize(10).FontColor(theme.AccentFg);
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(c => { c.RelativeColumn(5); c.RelativeColumn(2); });
+
+                            if (showNetIncome)
+                            {
+                                table.Cell().Padding(4).Text("Utilidad / Pérdida neta del período").FontSize(8);
+                                table.Cell().Padding(4).AlignRight()
+                                     .Text(Acct(sec.NetIncome, sym)).FontSize(8);
+                            }
+
+                            bool alt = false;
+                            foreach (var line in sec.Lines)
+                            {
+                                var bg = alt ? "#f8fafc" : "#ffffff";
+                                alt = !alt;
+                                table.Cell().Background(bg).Padding(4).PaddingLeft(showNetIncome ? 16 : 4)
+                                     .Text($"{line.AccountCode} — {line.AccountName}").FontSize(8);
+                                table.Cell().Background(bg).Padding(4).AlignRight()
+                                     .Text(line.Amount >= 0 ? Acct(line.Amount, sym) : $"({Acct(Math.Abs(line.Amount), sym)})")
+                                     .FontSize(8).FontColor(line.Amount < 0 ? "#991b1b" : "#0f172a");
+                            }
+                        });
+
+                        col.Item().Background("#e2e8f0").Padding(5).AlignRight()
+                           .Text($"Total {sec.Title}: {Acct(sec.Total, sym)}").Bold().FontSize(9);
+                        col.Item().Height(8);
+                    }
+
+                    Section(data.Operating, showNetIncome: true);
+                    Section(data.Investing,  showNetIncome: false);
+                    Section(data.Financing,  showNetIncome: false);
+
+                    // Reconciliation
+                    var balanced = Math.Abs(data.BeginningCash + data.NetChange - data.EndingCash) < 0.01m;
+                    col.Item().Background(balanced ? "#dcfce7" : "#fee2e2").Padding(8).Column(c =>
+                    {
+                        c.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text("Variación neta del período").Bold().FontSize(9)
+                               .FontColor(balanced ? "#14532d" : "#991b1b");
+                            row.AutoItem().Text(Acct(data.NetChange, sym)).Bold().FontSize(9)
+                               .FontColor(balanced ? "#14532d" : "#991b1b");
+                        });
+                        c.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text("Saldo final de efectivo").Bold().FontSize(11)
+                               .FontColor(balanced ? "#14532d" : "#991b1b");
+                            row.AutoItem().Text(Acct(data.EndingCash, sym)).Bold().FontSize(11)
+                               .FontColor(balanced ? "#14532d" : "#991b1b");
+                        });
+                    });
+                });
+                page.Footer().Element(Footer);
+            });
+        }).GeneratePdf();
+    }
+
     // ── CSV generators ────────────────────────────────────────────────────────
 
     private static byte[] TrialBalanceCsv(TrialBalanceDto data, OrgSettingsDto s)
@@ -436,6 +539,35 @@ public class ExportService : IExportService
         rows.Add(new[] { "TOTAL CAPITAL + RESULTADO", "", "", "", data.TotalEquity.ToString("N2") });
         rows.Add(Array.Empty<string>());
         rows.Add(new[] { "TOTAL PASIVO + CAPITAL", "", "", "", data.TotalLiabilitiesAndEquity.ToString("N2") });
+        return ToCsv(rows);
+    }
+
+    private static byte[] CashFlowCsv(CashFlowDto data, OrgSettingsDto s)
+    {
+        var rows = new List<string[]>
+        {
+            new[] { s.CompanyName, "Estado de Flujo de Efectivo", $"Del {data.From:dd/MM/yyyy} al {data.To:dd/MM/yyyy}", "Método Indirecto" },
+            Array.Empty<string>(),
+            new[] { "Saldo inicial de efectivo", "", data.BeginningCash.ToString("N2") },
+            Array.Empty<string>(),
+        };
+
+        void AddSection(CashFlowSectionDto sec, bool showNetIncome)
+        {
+            rows.Add(new[] { sec.Title });
+            if (showNetIncome)
+                rows.Add(new[] { "Utilidad / Pérdida neta del período", "", sec.NetIncome.ToString("N2") });
+            foreach (var l in sec.Lines)
+                rows.Add(new[] { $"  {l.AccountCode}", l.AccountName, l.Amount.ToString("N2") });
+            rows.Add(new[] { $"Total {sec.Title}", "", sec.Total.ToString("N2") });
+            rows.Add(Array.Empty<string>());
+        }
+
+        AddSection(data.Operating, showNetIncome: true);
+        AddSection(data.Investing,  showNetIncome: false);
+        AddSection(data.Financing,  showNetIncome: false);
+        rows.Add(new[] { "Variación neta del período", "", data.NetChange.ToString("N2") });
+        rows.Add(new[] { "Saldo final de efectivo",   "", data.EndingCash.ToString("N2") });
         return ToCsv(rows);
     }
 

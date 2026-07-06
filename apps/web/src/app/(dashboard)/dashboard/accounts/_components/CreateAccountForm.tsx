@@ -3,14 +3,22 @@
 import { useState, useTransition } from "react";
 import { createAccountAction } from "@/lib/actions";
 import { ApiError } from "@/lib/api-client";
-import type { Account, AccountType, CreateAccountRequest } from "@accounting/types";
+import type { Account, AccountType, CashFlowSection, CreateAccountRequest } from "@accounting/types";
 
 const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
-  { value: "Asset", label: "Activo" },
+  { value: "Asset",     label: "Activo" },
   { value: "Liability", label: "Pasivo" },
-  { value: "Equity", label: "Capital" },
-  { value: "Income", label: "Ingreso" },
-  { value: "Expense", label: "Gasto" },
+  { value: "Equity",    label: "Capital" },
+  { value: "Income",    label: "Ingreso" },
+  { value: "Expense",   label: "Gasto" },
+];
+
+const CASH_FLOW_SECTIONS: { value: CashFlowSection; label: string }[] = [
+  { value: "None",       label: "No aplica" },
+  { value: "Cash",       label: "Efectivo / Bancos" },
+  { value: "Operating",  label: "Operación" },
+  { value: "Investing",  label: "Inversión" },
+  { value: "Financing",  label: "Financiamiento" },
 ];
 
 function validate(code: string, name: string, type: string) {
@@ -41,6 +49,7 @@ export function CreateAccountForm({ accounts }: { accounts: Account[] }) {
     const type = (els.namedItem("type") as HTMLSelectElement).value;
     const parentId = (els.namedItem("parentId") as HTMLSelectElement).value;
     const isPostable = (els.namedItem("isPostable") as HTMLInputElement).checked;
+    const cashFlowSection = (els.namedItem("cashFlowSection") as HTMLSelectElement).value as CashFlowSection;
 
     const errors = validate(code, name, type);
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
@@ -52,6 +61,7 @@ export function CreateAccountForm({ accounts }: { accounts: Account[] }) {
       name: name.trim(),
       type: type as AccountType,
       isPostable,
+      cashFlowSection,
       ...(parentId ? { parentId } : {}),
     };
 
@@ -119,6 +129,14 @@ export function CreateAccountForm({ accounts }: { accounts: Account[] }) {
             <option value="">Sin cuenta padre</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label={<>Flujo de efectivo <span className="font-normal text-slate-400">(sección)</span></>}>
+          <select name="cashFlowSection" defaultValue="None" className={inp(false)}>
+            {CASH_FLOW_SECTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
         </Field>

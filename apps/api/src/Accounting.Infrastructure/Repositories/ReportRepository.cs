@@ -16,6 +16,7 @@ public class ReportRepository : IReportRepository
         _db.JournalLines
             .Where(l => l.JournalEntry.OrganizationId == orgId
                      && l.JournalEntry.Status == JournalStatus.Posted
+                     && !l.JournalEntry.IsYearEndClosing
                      && l.JournalEntry.Date >= from
                      && l.JournalEntry.Date <= to)
             .GroupBy(l => l.AccountId)
@@ -32,16 +33,23 @@ public class ReportRepository : IReportRepository
             .Select(g => new AccountBalanceData(g.Key, g.Sum(l => l.Debit), g.Sum(l => l.Credit)))
             .ToListAsync(ct);
 
-    public Task<List<LedgerLineData>> GetLedgerLinesAsync(
-        Guid orgId, Guid accountId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
-        _db.JournalLines
+    public async Task<(List<LedgerLineData> Items, int Total)> GetLedgerLinesPagedAsync(
+        Guid orgId, Guid accountId, DateOnly from, DateOnly to,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = _db.JournalLines
             .Where(l => l.JournalEntry.OrganizationId == orgId
                      && l.AccountId == accountId
                      && l.JournalEntry.Status == JournalStatus.Posted
                      && l.JournalEntry.Date >= from
                      && l.JournalEntry.Date <= to)
             .OrderBy(l => l.JournalEntry.Date)
-            .ThenBy(l => l.JournalEntry.CreatedAtUtc)
+            .ThenBy(l => l.JournalEntry.CreatedAtUtc);
+
+        var total = await q.CountAsync(ct);
+        var items = await q
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(l => new LedgerLineData(
                 l.JournalEntry.Id,
                 l.JournalEntry.Date,
@@ -50,6 +58,37 @@ public class ReportRepository : IReportRepository
                 l.Debit,
                 l.Credit))
             .ToListAsync(ct);
+
+        return (items, total);
+    }
+
+    public Task<List<MonthlyLineData>> GetMonthlyTrendsAsync(
+        Guid orgId, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        _db.JournalLines
+            .Where(l => l.JournalEntry.OrganizationId == orgId
+                     && l.JournalEntry.Status == JournalStatus.Posted
+                     && !l.JournalEntry.IsYearEndClosing
+                     && l.JournalEntry.Date >= from
+                     && l.JournalEntry.Date <= to)
+            .GroupBy(l => new { l.JournalEntry.Date.Year, l.JournalEntry.Date.Month, l.AccountId })
+            .Select(g => new MonthlyLineData(
+                g.Key.Year, g.Key.Month, g.Key.AccountId,
+                g.Sum(l => l.Debit), g.Sum(l => l.Credit)))
+            .ToListAsync(ct);
+
+    public Task<decimal> GetLedgerBalanceInRangeAsync(
+        Guid orgId, Guid accountId, DateOnly from, DateOnly to,
+        int skip, CancellationToken ct = default) =>
+        _db.JournalLines
+            .Where(l => l.JournalEntry.OrganizationId == orgId
+                     && l.AccountId == accountId
+                     && l.JournalEntry.Status == JournalStatus.Posted
+                     && l.JournalEntry.Date >= from
+                     && l.JournalEntry.Date <= to)
+            .OrderBy(l => l.JournalEntry.Date)
+            .ThenBy(l => l.JournalEntry.CreatedAtUtc)
+            .Take(skip)
+            .SumAsync(l => l.Debit - l.Credit, ct);
 
     public async Task<decimal> GetAccountOpeningBalanceAsync(
         Guid orgId, Guid accountId, DateOnly before, CancellationToken ct = default)

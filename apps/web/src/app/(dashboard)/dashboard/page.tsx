@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import type { DashboardSummary, RecentEntry } from "@accounting/types";
+import { IncomeExpenseChart, EquityTrendChart, RatioCards } from "./_components/DashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -127,6 +128,17 @@ export default async function DashboardPage() {
           }
         />
       </div>
+
+      {/* Charts section */}
+      {hasData && summary!.monthlyTrend.length > 0 && (
+        <div className="mb-8 space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <IncomeExpenseChart data={summary!.monthlyTrend} />
+            <EquityTrendChart   data={summary!.monthlyTrend} />
+          </div>
+          <RatioCards ratios={summary!.ratios} />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent entries */}

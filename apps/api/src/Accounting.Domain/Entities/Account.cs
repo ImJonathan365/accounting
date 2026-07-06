@@ -18,4 +18,5 @@ public class Account : BaseEntity
 
     public bool IsPostable { get; set; } = true;
     public bool IsActive { get; set; } = true;
+    public CashFlowSection CashFlowSection { get; set; } = CashFlowSection.None;
 }

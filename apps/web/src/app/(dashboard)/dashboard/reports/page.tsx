@@ -25,6 +25,12 @@ const REPORTS = [
     description: "Historial completo de movimientos de una cuenta con saldo acumulado después de cada asiento.",
     icon: "📒",
   },
+  {
+    href: "/dashboard/reports/cash-flow",
+    title: "Flujo de efectivo",
+    description: "Estado de flujo de efectivo por método indirecto. Muestra variaciones en operación, inversión y financiamiento.",
+    icon: "💵",
+  },
 ];
 
 export default function ReportsPage() {
