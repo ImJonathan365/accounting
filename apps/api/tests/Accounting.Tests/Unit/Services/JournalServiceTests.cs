@@ -12,8 +12,9 @@ namespace Accounting.Tests.Unit.Services;
 
 public class JournalServiceTests
 {
-    private readonly IJournalRepository  _journalRepo  = Substitute.For<IJournalRepository>();
-    private readonly IAccountRepository  _accountRepo  = Substitute.For<IAccountRepository>();
+    private readonly IJournalRepository            _journalRepo  = Substitute.For<IJournalRepository>();
+    private readonly IAccountRepository            _accountRepo  = Substitute.For<IAccountRepository>();
+    private readonly IAccountingPeriodRepository   _periods      = Substitute.For<IAccountingPeriodRepository>();
     private readonly IValidator<CreateJournalEntryDto> _validator       = Substitute.For<IValidator<CreateJournalEntryDto>>();
     private readonly IValidator<UpdateJournalEntryDto> _updateValidator = Substitute.For<IValidator<UpdateJournalEntryDto>>();
     private readonly IValidator<VoidJournalEntryDto>   _voidValidator   = Substitute.For<IValidator<VoidJournalEntryDto>>();
@@ -25,7 +26,11 @@ public class JournalServiceTests
 
     public JournalServiceTests()
     {
-        _sut = new JournalService(_journalRepo, _accountRepo, _validator, _updateValidator, _voidValidator);
+        _sut = new JournalService(_journalRepo, _accountRepo, _periods, _validator, _updateValidator, _voidValidator);
+
+        // Default: all periods open
+        _periods.IsClosedAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(false);
 
         _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());

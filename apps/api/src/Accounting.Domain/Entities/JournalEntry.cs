@@ -16,12 +16,11 @@ public class JournalEntry : BaseEntity
     public ICollection<JournalLine> Lines { get; set; } = new List<JournalLine>();
 
     // Void support
-    /// <summary>If this entry reverses another, points to the original entry.</summary>
-    public Guid? VoidsEntryId    { get; set; }
+    public Guid?     VoidsEntryId    { get; set; }
+    public Guid?     VoidedByEntryId { get; set; }
+    public string?   VoidReason      { get; set; }
+    public DateTime? VoidedAtUtc     { get; set; }
 
-    /// <summary>If this entry has been voided, points to the counter-entry that reversed it.</summary>
-    public Guid? VoidedByEntryId { get; set; }
-
-    public string?   VoidReason   { get; set; }
-    public DateTime? VoidedAtUtc  { get; set; }
+    // Marking closing entries so reports can exclude them from period activity
+    public bool IsYearEndClosing { get; set; } = false;
 }

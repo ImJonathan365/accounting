@@ -23,8 +23,9 @@ public interface IJournalService
 
 public class JournalService : IJournalService
 {
-    private readonly IJournalRepository _journal;
-    private readonly IAccountRepository _accounts;
+    private readonly IJournalRepository            _journal;
+    private readonly IAccountRepository            _accounts;
+    private readonly IAccountingPeriodRepository   _periods;
     private readonly IValidator<CreateJournalEntryDto> _createValidator;
     private readonly IValidator<UpdateJournalEntryDto> _updateValidator;
     private readonly IValidator<VoidJournalEntryDto>   _voidValidator;
@@ -32,12 +33,14 @@ public class JournalService : IJournalService
     public JournalService(
         IJournalRepository journal,
         IAccountRepository accounts,
+        IAccountingPeriodRepository periods,
         IValidator<CreateJournalEntryDto> createValidator,
         IValidator<UpdateJournalEntryDto> updateValidator,
         IValidator<VoidJournalEntryDto> voidValidator)
     {
         _journal         = journal;
         _accounts        = accounts;
+        _periods         = periods;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _voidValidator   = voidValidator;
@@ -82,6 +85,10 @@ public class JournalService : IJournalService
         if (nonPostable.Count > 0)
             throw new InvalidOperationException(
                 $"Las siguientes cuentas no admiten movimientos: {string.Join(", ", nonPostable)}.");
+
+        // Period check only for posted entries (drafts are allowed in closed periods)
+        if (!dto.IsDraft)
+            await AssertPeriodOpenAsync(orgId, dto.Date, ct);
 
         var accountMap = accounts.ToDictionary(a => a.Id);
 
@@ -172,6 +179,8 @@ public class JournalService : IJournalService
         if (entry.Status != JournalStatus.Draft)
             throw new InvalidOperationException("Solo se pueden registrar asientos en estado Borrador.");
 
+        await AssertPeriodOpenAsync(orgId, entry.Date, ct);
+
         var totalDebit  = entry.Lines.Sum(l => l.Debit);
         var totalCredit = entry.Lines.Sum(l => l.Credit);
 
@@ -239,14 +248,13 @@ public class JournalService : IJournalService
             }).ToList()
         };
 
-        // Mark original as voided — reference the counter-entry by its pre-assigned Id
         original.Status          = JournalStatus.Voided;
         original.VoidReason      = dto.Reason?.Trim();
         original.VoidedAtUtc     = DateTime.UtcNow;
         original.VoidedByEntryId = counterEntry.Id;
 
         await _journal.AddAsync(counterEntry, ct);
-        await _journal.SaveChangesAsync(ct);   // Single transaction: both changes committed together
+        await _journal.SaveChangesAsync(ct);
 
         return MapDetail(original);
     }
@@ -264,4 +272,11 @@ public class JournalService : IJournalService
                 l.Debit, l.Credit, l.Note)).ToList(),
             e.CreatedAtUtc,
             e.VoidsEntryId, e.VoidedByEntryId, e.VoidReason, e.VoidedAtUtc);
+
+    private async Task AssertPeriodOpenAsync(Guid orgId, DateOnly date, CancellationToken ct)
+    {
+        if (await _periods.IsClosedAsync(orgId, date.Year, date.Month, ct))
+            throw new InvalidOperationException(
+                $"El período {date:MMMM yyyy} está cerrado. Reabre el período para registrar asientos en esa fecha.");
+    }
 }

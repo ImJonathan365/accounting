@@ -75,12 +75,20 @@ export default async function JournalPage({
             {total} asiento{total !== 1 ? "s" : ""} encontrado{total !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link
-          href="/dashboard/journal/new"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
-        >
-          + Nuevo asiento
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/dashboard/journal/recurring"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+          >
+            Recurrentes
+          </Link>
+          <Link
+            href="/dashboard/journal/new"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+          >
+            + Nuevo asiento
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
