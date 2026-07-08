@@ -31,14 +31,14 @@ public class MembersController : ControllerBase
         => Ok(await _service.ListAsync(orgId, ct));
 
     [HttpPost]
-    public async Task<ActionResult<MemberDto>> Invite(
+    public async Task<IActionResult> Invite(
         Guid orgId, [FromBody] InviteMemberDto dto, CancellationToken ct)
     {
-        var member = await _service.InviteAsync(orgId, CurrentUserId, dto, ct);
+        await _service.InviteAsync(orgId, CurrentUserId, dto, ct);
         await _audit.LogAsync(orgId, CurrentUserId,
-            AuditActions.MemberInvited, "Member", member.UserId,
-            $"Invitó a {member.Email} como {member.Role}", ct);
-        return Ok(member);
+            AuditActions.MemberInvited, "Member", Guid.Empty,
+            $"Envió invitación a {dto.Email} como {dto.Role}", ct);
+        return Accepted();
     }
 
     [HttpPut("{userId:guid}/role")]

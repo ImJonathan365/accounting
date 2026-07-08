@@ -12,3 +12,12 @@ public record MemberDto(
 public record InviteMemberDto(string Email, string Role);
 
 public record UpdateMemberRoleDto(string Role);
+
+public record InvitationInfoDto(
+    Guid   OrgId,
+    string OrgName,
+    string InviterName,
+    string InvitedEmail,
+    string Role,
+    bool   IsValid,
+    string InvalidReason);

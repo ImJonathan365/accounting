@@ -16,3 +16,13 @@ export interface InviteMemberRequest {
 export interface UpdateMemberRoleRequest {
   role: string;
 }
+
+export interface InvitationInfo {
+  orgId:         string;
+  orgName:       string;
+  inviterName:   string;
+  invitedEmail:  string;
+  role:          string;
+  isValid:       boolean;
+  invalidReason: string;
+}
