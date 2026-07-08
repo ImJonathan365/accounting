@@ -33,4 +33,18 @@ public class UserController : ControllerBase
     [HttpGet("me/organizations")]
     public async Task<ActionResult<List<UserOrgDto>>> ListOrganizations(CancellationToken ct)
         => Ok(await _auth.ListUserOrgsAsync(CurrentUserId, ct));
+
+    [HttpPost("me/change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto, CancellationToken ct)
+    {
+        await _users.ChangePasswordAsync(CurrentUserId, dto, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountDto dto, CancellationToken ct)
+    {
+        await _users.DeleteAccountAsync(CurrentUserId, dto, ct);
+        return NoContent();
+    }
 }

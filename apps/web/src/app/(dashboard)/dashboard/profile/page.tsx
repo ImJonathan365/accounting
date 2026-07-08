@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerToken } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
 import { ProfileForm } from "./_components/ProfileForm";
+import { ChangePasswordForm } from "./_components/ChangePasswordForm";
+import { DeleteAccountButton } from "./_components/DeleteAccountButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,24 @@ export default async function ProfilePage() {
           <h3 className="mb-6 text-base font-semibold text-slate-900 dark:text-slate-100">Información personal</h3>
           <ProfileForm profile={profile} />
         </div>
+      </div>
+
+      {/* Change password */}
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
+        <h3 className="mb-1 text-base font-semibold text-slate-900 dark:text-slate-100">Cambiar contraseña</h3>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+          Usa una contraseña segura con al menos 8 caracteres, una mayúscula y un número.
+        </p>
+        <ChangePasswordForm />
+      </div>
+
+      {/* Danger zone */}
+      <div className="mt-6 rounded-xl border border-red-200 bg-white p-6 dark:border-red-900/50 dark:bg-slate-800">
+        <h3 className="mb-1 text-base font-semibold text-red-600 dark:text-red-400">Zona de peligro</h3>
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          Al eliminar tu cuenta quedará desactivada de forma permanente. Los registros contables asociados se conservan por requisitos legales.
+        </p>
+        <DeleteAccountButton />
       </div>
     </>
   );
