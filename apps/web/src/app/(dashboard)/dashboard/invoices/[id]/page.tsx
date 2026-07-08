@@ -34,6 +34,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     ]);
 
     const paymentAccounts = accounts.filter(a => a.isPostable && a.type === "Asset");
+    const hasTax = inv.lines.some(l => (l.taxRatePercent ?? 0) > 0);
 
     return (
       <div className="space-y-6">
@@ -80,7 +81,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <th className="px-6 py-2 font-medium">Cuenta</th>
                 <th className="px-6 py-2 text-right font-medium">Cant.</th>
                 <th className="px-6 py-2 text-right font-medium">Precio</th>
-                <th className="px-6 py-2 text-right font-medium">Subtotal</th>
+                {hasTax && <th className="px-6 py-2 text-right font-medium">Impuesto</th>}
+                <th className="px-6 py-2 text-right font-medium">Total línea</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -90,13 +92,30 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   <td className="px-6 py-3 text-xs text-slate-500">{l.accountCode} — {l.accountName}</td>
                   <td className="px-6 py-3 text-right tabular-nums">{l.quantity}</td>
                   <td className="px-6 py-3 text-right tabular-nums">{fmt(l.unitPrice)}</td>
-                  <td className="px-6 py-3 text-right font-medium tabular-nums">{fmt(l.subtotal)}</td>
+                  {hasTax && (
+                    <td className="px-6 py-3 text-right text-xs text-slate-500">
+                      {l.taxRateName ? `${l.taxRateName} · ${fmt(l.taxAmount ?? 0)}` : "—"}
+                    </td>
+                  )}
+                  <td className="px-6 py-3 text-right font-medium tabular-nums">{fmt(l.lineTotal ?? l.subtotal)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
+              {hasTax && (
+                <>
+                  <tr className="border-t border-slate-100 dark:border-slate-700">
+                    <td colSpan={5} className="px-6 py-2 text-right text-xs text-slate-400">Subtotal</td>
+                    <td className="px-6 py-2 text-right tabular-nums text-sm text-slate-500">{fmt(inv.subTotal ?? 0)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="px-6 py-2 text-right text-xs text-slate-400">Impuesto</td>
+                    <td className="px-6 py-2 text-right tabular-nums text-sm text-slate-500">{fmt(inv.taxTotal ?? 0)}</td>
+                  </tr>
+                </>
+              )}
               <tr className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
-                <td colSpan={4} className="px-6 py-3 text-right font-semibold text-slate-900 dark:text-slate-100">Total</td>
+                <td colSpan={hasTax ? 5 : 4} className="px-6 py-3 text-right font-semibold text-slate-900 dark:text-slate-100">Total</td>
                 <td className="px-6 py-3 text-right font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(inv.total)}</td>
               </tr>
             </tfoot>

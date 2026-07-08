@@ -12,9 +12,11 @@ export default async function NewInvoicePage() {
   if (!token || !orgId) redirect("/login");
   if (role !== "owner" && role !== "admin") redirect("/dashboard/invoices");
 
-  const [contacts, accounts] = await Promise.all([
+  const [contacts, accounts, taxRates, products] = await Promise.all([
     apiClient.contacts.list(orgId, token),
     apiClient.accounts.list(orgId, token),
+    apiClient.taxRates.list(orgId, token),
+    apiClient.products.list(orgId, token),
   ]);
 
   return (
@@ -23,7 +25,7 @@ export default async function NewInvoicePage() {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Nueva factura</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Crea una factura de cobro o pago.</p>
       </div>
-      <CreateInvoiceForm orgId={orgId} token={token} contacts={contacts} accounts={accounts} />
+      <CreateInvoiceForm orgId={orgId} token={token} contacts={contacts} accounts={accounts} taxRates={taxRates} products={products} />
     </div>
   );
 }

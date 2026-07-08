@@ -16,15 +16,21 @@ namespace Accounting.Api.Controllers;
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService                _service;
+    private readonly IExportService                 _export;
+    private readonly IOrgSettingsService            _settings;
     private readonly IValidator<CreateInvoiceDto>   _createValidator;
     private readonly IValidator<CreatePaymentDto>   _paymentValidator;
 
     public InvoicesController(
         IInvoiceService service,
+        IExportService export,
+        IOrgSettingsService settings,
         IValidator<CreateInvoiceDto> createValidator,
         IValidator<CreatePaymentDto> paymentValidator)
     {
         _service          = service;
+        _export           = export;
+        _settings         = settings;
         _createValidator  = createValidator;
         _paymentValidator = paymentValidator;
     }
@@ -33,6 +39,10 @@ public class InvoicesController : ControllerBase
     public async Task<ActionResult<List<InvoiceDto>>> GetAll(
         Guid orgId, [FromQuery] InvoiceType? type, CancellationToken ct) =>
         Ok(await _service.GetAllAsync(orgId, type, ct));
+
+    [HttpGet("overdue")]
+    public async Task<ActionResult<List<OverdueInvoiceDto>>> GetOverdue(Guid orgId, CancellationToken ct) =>
+        Ok(await _service.GetOverdueAsync(orgId, ct));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<InvoiceDto>> GetById(Guid orgId, Guid id, CancellationToken ct) =>
@@ -68,5 +78,14 @@ public class InvoicesController : ControllerBase
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         return Ok(await _service.VoidAsync(orgId, id, ct));
+    }
+
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> GetPdf(Guid orgId, Guid id, CancellationToken ct)
+    {
+        var inv      = await _service.GetByIdAsync(orgId, id, ct);
+        var settings = await _settings.GetAsync(orgId, ct);
+        var pdf      = _export.GenerateInvoicePdf(inv, settings);
+        return File(pdf, "application/pdf", $"factura-{inv.Number}.pdf");
     }
 }

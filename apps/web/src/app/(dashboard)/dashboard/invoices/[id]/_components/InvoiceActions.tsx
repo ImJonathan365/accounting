@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { apiBaseUrl } from "@/lib/env";
 import type { Invoice, Account } from "@accounting/types";
 
 interface Props { invoice: Invoice; orgId: string; token: string; paymentAccounts: Account[]; }
@@ -11,6 +12,28 @@ interface Props { invoice: Invoice; orgId: string; token: string; paymentAccount
 export function InvoiceActions({ invoice, orgId, token, paymentAccounts }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}${apiClient.invoices.pdfUrl(orgId, invoice.id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { toast.error("No se pudo generar el PDF."); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `factura-${invoice.number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Error al descargar el PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
   const [showPayment, setShowPayment] = useState(false);
   const [payDate, setPayDate]         = useState(new Date().toISOString().slice(0, 10));
   const [payAmount, setPayAmount]     = useState(String(invoice.balance.toFixed(2)));
@@ -70,6 +93,11 @@ export function InvoiceActions({ invoice, orgId, token, paymentAccounts }: Props
   return (
     <div className="flex flex-col gap-2 items-end">
       <div className="flex gap-2">
+        {invoice.status !== "Draft" && (
+          <button onClick={downloadPdf} disabled={downloading} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+            {downloading ? "Generando…" : "Descargar PDF"}
+          </button>
+        )}
         {invoice.status === "Draft" && (
           <button onClick={issue} disabled={isPending} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
             Emitir factura

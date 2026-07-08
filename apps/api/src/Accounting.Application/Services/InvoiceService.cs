@@ -7,25 +7,30 @@ namespace Accounting.Application.Services;
 
 public interface IInvoiceService
 {
-    Task<List<InvoiceDto>> GetAllAsync(Guid orgId, InvoiceType? type = null, CancellationToken ct = default);
-    Task<InvoiceDto>       GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
-    Task<InvoiceDto>       CreateAsync(Guid orgId, CreateInvoiceDto dto, CancellationToken ct = default);
-    Task<InvoiceDto>       IssueAsync(Guid orgId, Guid id, CancellationToken ct = default);
-    Task<InvoiceDto>       RecordPaymentAsync(Guid orgId, Guid id, CreatePaymentDto dto, CancellationToken ct = default);
-    Task<InvoiceDto>       VoidAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    Task<List<InvoiceDto>>         GetAllAsync(Guid orgId, InvoiceType? type = null, CancellationToken ct = default);
+    Task<InvoiceDto>               GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    Task<List<OverdueInvoiceDto>>  GetOverdueAsync(Guid orgId, CancellationToken ct = default);
+    Task<InvoiceDto>               CreateAsync(Guid orgId, CreateInvoiceDto dto, CancellationToken ct = default);
+    Task<InvoiceDto>               IssueAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    Task<InvoiceDto>               RecordPaymentAsync(Guid orgId, Guid id, CreatePaymentDto dto, CancellationToken ct = default);
+    Task<InvoiceDto>               VoidAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class InvoiceService : IInvoiceService
 {
-    private readonly IInvoiceRepository _repo;
-    private readonly IAccountRepository _accounts;
-    private readonly IJournalRepository _journal;
+    private readonly IInvoiceRepository  _repo;
+    private readonly IAccountRepository  _accounts;
+    private readonly IJournalRepository  _journal;
+    private readonly ITaxRateRepository  _taxRates;
+    private readonly IJournalService     _journalSvc;
 
-    public InvoiceService(IInvoiceRepository repo, IAccountRepository accounts, IJournalRepository journal)
+    public InvoiceService(IInvoiceRepository repo, IAccountRepository accounts, IJournalRepository journal, ITaxRateRepository taxRates, IJournalService journalSvc)
     {
-        _repo     = repo;
-        _accounts = accounts;
-        _journal  = journal;
+        _repo       = repo;
+        _accounts   = accounts;
+        _journal    = journal;
+        _taxRates   = taxRates;
+        _journalSvc = journalSvc;
     }
 
     public async Task<List<InvoiceDto>> GetAllAsync(Guid orgId, InvoiceType? type = null, CancellationToken ct = default)
@@ -36,9 +41,21 @@ public class InvoiceService : IInvoiceService
 
     public async Task<InvoiceDto> GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default)
     {
-        var inv = await _repo.GetByIdAsync(orgId, id, ct)
+        var inv = await _repo.GetByIdReadOnlyAsync(orgId, id, ct)
             ?? throw new KeyNotFoundException("Factura no encontrada.");
         return Map(inv);
+    }
+
+    public async Task<List<OverdueInvoiceDto>> GetOverdueAsync(Guid orgId, CancellationToken ct = default)
+    {
+        var list = await _repo.GetOverdueAsync(orgId, ct);
+        return list.Select(i => new OverdueInvoiceDto(
+            i.Id, i.Number, i.Contact?.Name ?? "",
+            i.DueDate.ToString("yyyy-MM-dd"),
+            i.Type.ToString(),
+            i.Lines.Sum(l => l.Quantity * l.UnitPrice * (1 + (l.TaxRate?.Rate ?? 0) / 100))
+            - i.Payments.Sum(p => p.Amount)
+        )).ToList();
     }
 
     public async Task<InvoiceDto> CreateAsync(Guid orgId, CreateInvoiceDto dto, CancellationToken ct = default)
@@ -67,13 +84,14 @@ public class InvoiceService : IInvoiceService
                 Quantity    = l.Quantity,
                 UnitPrice   = l.UnitPrice,
                 AccountId   = l.AccountId,
+                TaxRateId   = l.TaxRateId,
             }).ToList(),
         };
 
         await _repo.AddAsync(invoice, ct);
         await _repo.SaveChangesAsync(ct);
 
-        var full = await _repo.GetByIdAsync(orgId, invoice.Id, ct);
+        var full = await _repo.GetByIdReadOnlyAsync(orgId, invoice.Id, ct);
         return Map(full!);
     }
 
@@ -85,27 +103,48 @@ public class InvoiceService : IInvoiceService
         if (inv.Status != InvoiceStatus.Draft)
             throw new InvalidOperationException("Solo se pueden emitir facturas en estado borrador.");
 
-        var total = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
+        // Load tax rate data separately (AsNoTracking) to avoid EF change-tracker side-effects
+        var taxRateIds = inv.Lines.Where(l => l.TaxRateId.HasValue).Select(l => l.TaxRateId!.Value).ToList();
+        var taxRateMap = taxRateIds.Count > 0
+            ? (await _taxRates.GetByIdsAsync(taxRateIds, orgId, ct)).ToDictionary(t => t.Id)
+            : new Dictionary<Guid, TaxRate>();
 
-        // Build journal entry: AR/AP account vs income/expense accounts
+        var subTotal = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
+        var taxTotal = inv.Lines.Sum(l =>
+        {
+            var rate = l.TaxRateId.HasValue && taxRateMap.TryGetValue(l.TaxRateId.Value, out var tr) ? tr.Rate : 0m;
+            return l.Quantity * l.UnitPrice * rate / 100;
+        });
+        var total = subTotal + taxTotal;
+
+        // Build journal entry: AR/AP account vs income/expense + tax accounts
         var lines = new List<JournalLine>();
         if (inv.Type == InvoiceType.Receivable)
         {
             lines.Add(new JournalLine { AccountId = inv.ArApAccountId, Debit = total, Credit = 0 });
             foreach (var l in inv.Lines)
-            {
-                var sub = l.Quantity * l.UnitPrice;
-                lines.Add(new JournalLine { AccountId = l.AccountId, Debit = 0, Credit = sub });
-            }
+                lines.Add(new JournalLine { AccountId = l.AccountId, Debit = 0, Credit = l.Quantity * l.UnitPrice });
         }
         else
         {
             lines.Add(new JournalLine { AccountId = inv.ArApAccountId, Debit = 0, Credit = total });
             foreach (var l in inv.Lines)
-            {
-                var sub = l.Quantity * l.UnitPrice;
-                lines.Add(new JournalLine { AccountId = l.AccountId, Debit = sub, Credit = 0 });
-            }
+                lines.Add(new JournalLine { AccountId = l.AccountId, Debit = l.Quantity * l.UnitPrice, Credit = 0 });
+        }
+
+        // Tax lines grouped by tax account
+        var taxGroups = inv.Lines
+            .Where(l => l.TaxRateId.HasValue && taxRateMap.ContainsKey(l.TaxRateId!.Value))
+            .GroupBy(l => taxRateMap[l.TaxRateId!.Value].TaxAccountId);
+
+        foreach (var g in taxGroups)
+        {
+            var taxAmt = g.Sum(l => l.Quantity * l.UnitPrice * taxRateMap[l.TaxRateId!.Value].Rate / 100);
+            if (taxAmt == 0) continue;
+            if (inv.Type == InvoiceType.Receivable)
+                lines.Add(new JournalLine { AccountId = g.Key, Debit = 0, Credit = taxAmt });
+            else
+                lines.Add(new JournalLine { AccountId = g.Key, Debit = taxAmt, Credit = 0 });
         }
 
         var entry = new JournalEntry
@@ -123,7 +162,7 @@ public class InvoiceService : IInvoiceService
         inv.Status         = InvoiceStatus.Issued;
         await _repo.SaveChangesAsync(ct);
 
-        return Map(inv);
+        return await GetByIdAsync(orgId, id, ct);
     }
 
     public async Task<InvoiceDto> RecordPaymentAsync(Guid orgId, Guid id, CreatePaymentDto dto, CancellationToken ct = default)
@@ -134,11 +173,21 @@ public class InvoiceService : IInvoiceService
         if (inv.Status is InvoiceStatus.Draft or InvoiceStatus.Void)
             throw new InvalidOperationException("La factura debe estar emitida para registrar pagos.");
 
-        var total   = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
+        // Load tax rates separately (AsNoTracking) to compute the correct tax-inclusive total
+        var taxRateIds = inv.Lines.Where(l => l.TaxRateId.HasValue).Select(l => l.TaxRateId!.Value).ToList();
+        var taxRateMap = taxRateIds.Count > 0
+            ? (await _taxRates.GetByIdsAsync(taxRateIds, orgId, ct)).ToDictionary(t => t.Id, t => t.Rate)
+            : new Dictionary<Guid, decimal>();
+
+        var total = inv.Lines.Sum(l =>
+        {
+            var rate = l.TaxRateId.HasValue && taxRateMap.TryGetValue(l.TaxRateId.Value, out var r) ? r : 0m;
+            return l.Quantity * l.UnitPrice * (1 + rate / 100);
+        });
         var paid    = inv.Payments.Sum(p => p.Amount);
         var balance = total - paid;
 
-        if (dto.Amount <= 0 || dto.Amount > balance)
+        if (dto.Amount <= 0 || dto.Amount > balance + 0.001m)
             throw new ArgumentException($"El monto del pago debe ser entre 0.01 y {balance:F2}.");
 
         // Journal entry for payment
@@ -175,15 +224,17 @@ public class InvoiceService : IInvoiceService
             JournalEntryId   = entry.Id,
             Notes            = dto.Notes?.Trim(),
         };
-        inv.Payments.Add(payment);
+        // Use AddPaymentAsync (direct DbSet insert) instead of collection nav to guarantee
+        // Added state — EF Core 10 can mistrack the entity as Modified via collection fixup
+        await _repo.AddPaymentAsync(payment, ct);
 
         var newPaid = paid + dto.Amount;
-        inv.Status = Math.Abs(newPaid - total) < 0.001m
+        inv.Status = Math.Abs(newPaid - total) < 0.005m
             ? InvoiceStatus.Paid
             : InvoiceStatus.PartiallyPaid;
 
         await _repo.SaveChangesAsync(ct);
-        return Map(inv);
+        return await GetByIdAsync(orgId, id, ct);
     }
 
     public async Task<InvoiceDto> VoidAsync(Guid orgId, Guid id, CancellationToken ct = default)
@@ -198,8 +249,19 @@ public class InvoiceService : IInvoiceService
             throw new InvalidOperationException("No se puede anular una factura con pagos registrados.");
 
         inv.Status = InvoiceStatus.Void;
-        await _repo.SaveChangesAsync(ct);
-        return Map(inv);
+
+        if (inv.JournalEntryId.HasValue)
+        {
+            // VoidAsync saves all pending changes (including the status above) via shared DbContext
+            await _journalSvc.VoidAsync(orgId, inv.JournalEntryId.Value,
+                new VoidJournalEntryDto($"Factura anulada: {inv.Number}", null), ct);
+        }
+        else
+        {
+            await _repo.SaveChangesAsync(ct);
+        }
+
+        return await GetByIdAsync(orgId, id, ct);
     }
 
     private static string StatusLabel(InvoiceStatus s) => s switch
@@ -214,8 +276,10 @@ public class InvoiceService : IInvoiceService
 
     private static InvoiceDto Map(Invoice inv)
     {
-        var total   = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
-        var paid    = inv.Payments.Sum(p => p.Amount);
+        var subTotal = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
+        var taxTotal = inv.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.TaxRate?.Rate ?? 0) / 100);
+        var total    = subTotal + taxTotal;
+        var paid     = inv.Payments.Sum(p => p.Amount);
         return new InvoiceDto(
             inv.Id, inv.Type,
             inv.ContactId, inv.Contact?.Name ?? "",
@@ -225,10 +289,17 @@ public class InvoiceService : IInvoiceService
             inv.Status, StatusLabel(inv.Status),
             inv.ArApAccountId, inv.ArApAccount?.Name ?? "",
             inv.Notes, inv.JournalEntryId,
-            total, paid, total - paid,
-            inv.Lines.Select(l => new InvoiceLineDto(
-                l.Id, l.Description, l.Quantity, l.UnitPrice, l.Quantity * l.UnitPrice,
-                l.AccountId, l.Account?.Code ?? "", l.Account?.Name ?? "")).ToList(),
+            subTotal, taxTotal, total, paid, total - paid,
+            inv.Lines.Select(l =>
+            {
+                var sub    = l.Quantity * l.UnitPrice;
+                var taxPct = l.TaxRate?.Rate ?? 0;
+                var taxAmt = sub * taxPct / 100;
+                return new InvoiceLineDto(
+                    l.Id, l.Description, l.Quantity, l.UnitPrice, sub,
+                    l.AccountId, l.Account?.Code ?? "", l.Account?.Name ?? "",
+                    l.TaxRateId, l.TaxRate?.Name, taxPct, taxAmt, sub + taxAmt);
+            }).ToList(),
             inv.Payments.Select(p => new InvoicePaymentDto(
                 p.Id, p.Date.ToString("yyyy-MM-dd"), p.Amount,
                 p.PaymentAccountId, p.PaymentAccount?.Name ?? "",

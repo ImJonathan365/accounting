@@ -14,15 +14,39 @@ export interface Contact {
   invoiceCount: number;
 }
 
+export interface CreateContactRequest {
+  type:     ContactType;
+  name:     string;
+  email?:   string;
+  phone?:   string;
+  address?: string;
+  notes?:   string;
+}
+
+export interface UpdateContactRequest {
+  type?:     ContactType;
+  name?:     string;
+  email?:    string;
+  phone?:    string;
+  address?:  string;
+  notes?:    string;
+  isActive?: boolean;
+}
+
 export interface InvoiceLine {
-  id:          string;
-  description: string;
-  quantity:    number;
-  unitPrice:   number;
-  subtotal:    number;
-  accountId:   string;
-  accountCode: string;
-  accountName: string;
+  id:              string;
+  description:     string;
+  quantity:        number;
+  unitPrice:       number;
+  subtotal:        number;
+  accountId:       string;
+  accountCode:     string;
+  accountName:     string;
+  taxRateId:       string | null;
+  taxRateName:     string | null;
+  taxRatePercent:  number;
+  taxAmount:       number;
+  lineTotal:       number;
 }
 
 export interface InvoicePayment {
@@ -49,6 +73,8 @@ export interface Invoice {
   arApAccountName: string;
   notes:           string | null;
   journalEntryId:  string | null;
+  subTotal:        number;
+  taxTotal:        number;
   total:           number;
   paid:            number;
   balance:         number;
@@ -61,6 +87,7 @@ export interface CreateInvoiceLineRequest {
   quantity:    number;
   unitPrice:   number;
   accountId:   string;
+  taxRateId?:  string;
 }
 
 export interface CreateInvoiceRequest {
@@ -72,15 +99,6 @@ export interface CreateInvoiceRequest {
   arApAccountId: string;
   notes?:        string;
   lines:         CreateInvoiceLineRequest[];
-}
-
-export interface CreateContactRequest {
-  type:     ContactType;
-  name:     string;
-  email?:   string;
-  phone?:   string;
-  address?: string;
-  notes?:   string;
 }
 
 export interface CreatePaymentRequest {

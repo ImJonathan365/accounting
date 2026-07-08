@@ -38,13 +38,19 @@ public record InvoiceLineDto(
     decimal Subtotal,
     Guid    AccountId,
     string  AccountCode,
-    string  AccountName);
+    string  AccountName,
+    Guid?   TaxRateId,
+    string? TaxRateName,
+    decimal TaxRatePercent,
+    decimal TaxAmount,
+    decimal LineTotal);
 
 public record CreateInvoiceLineDto(
     string  Description,
     decimal Quantity,
     decimal UnitPrice,
-    Guid    AccountId);
+    Guid    AccountId,
+    Guid?   TaxRateId);
 
 public record InvoicePaymentDto(
     Guid    Id,
@@ -75,6 +81,8 @@ public record InvoiceDto(
     string        ArApAccountName,
     string?       Notes,
     Guid?         JournalEntryId,
+    decimal       SubTotal,
+    decimal       TaxTotal,
     decimal       Total,
     decimal       Paid,
     decimal       Balance,

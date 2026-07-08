@@ -9,6 +9,9 @@ public class InvoiceLine
     public decimal UnitPrice   { get; set; }
     public Guid    AccountId   { get; set; }
 
-    public Invoice Invoice { get; set; } = null!;
-    public Account Account { get; set; } = null!;
+    public Guid?    TaxRateId { get; set; }
+
+    public Invoice  Invoice  { get; set; } = null!;
+    public Account  Account  { get; set; } = null!;
+    public TaxRate? TaxRate  { get; set; }
 }
