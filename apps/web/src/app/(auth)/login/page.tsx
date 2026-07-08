@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { loginAction } from "@/lib/actions";
 import { ApiError } from "@/lib/api-client";
 
@@ -17,6 +18,8 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const params = useSearchParams();
+  const next   = params.get("next") ?? undefined;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,7 +34,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await loginAction({ email, password });
+      await loginAction({ email, password }, next);
     } catch (err) {
       if (err instanceof ApiError && err.fieldErrors) {
         const mapped: Record<string, string> = {};
@@ -74,6 +77,11 @@ export default function LoginPage() {
               className={input(!!fieldErrors.password)}
               onChange={() => setFieldErrors((p) => ({ ...p, password: "" }))}
             />
+            <div className="mt-1 text-right">
+              <Link href="/forgot-password" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </Field>
 
           <button type="submit" disabled={loading} className={btn}>

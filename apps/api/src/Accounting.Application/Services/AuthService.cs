@@ -16,43 +16,74 @@ public interface IAuthService
     Task<AuthResponseDto> RefreshAsync(string refreshToken, CancellationToken ct = default);
     Task RevokeAsync(string refreshToken, CancellationToken ct = default);
     Task<List<UserOrgDto>> ListUserOrgsAsync(Guid userId, CancellationToken ct = default);
+
+    // Password recovery
+    Task ForgotPasswordAsync(ForgotPasswordDto dto, CancellationToken ct = default);
+    Task ResetPasswordAsync(ResetPasswordDto dto, CancellationToken ct = default);
+
+    // Email verification
+    Task VerifyEmailAsync(VerifyEmailDto dto, CancellationToken ct = default);
+    Task ResendVerificationAsync(ForgotPasswordDto dto, CancellationToken ct = default);
 }
 
 public class AuthService : IAuthService
 {
-    private readonly IUserRepository _users;
-    private readonly IOrganizationRepository _orgs;
-    private readonly IExternalLoginRepository _externalLogins;
-    private readonly IRefreshTokenRepository _refreshTokens;
-    private readonly ITokenService _tokens;
-    private readonly IAccountSeeder _accountSeeder;
-    private readonly AuthSettings _authSettings;
-    private readonly IValidator<RegisterDto> _registerValidator;
-    private readonly IValidator<LoginDto> _loginValidator;
+    private readonly IUserRepository                   _users;
+    private readonly IOrganizationRepository           _orgs;
+    private readonly IExternalLoginRepository          _externalLogins;
+    private readonly IRefreshTokenRepository           _refreshTokens;
+    private readonly IPasswordResetTokenRepository     _passwordResets;
+    private readonly IEmailVerificationTokenRepository _emailVerifications;
+    private readonly ITokenService                     _tokens;
+    private readonly IAccountSeeder                    _accountSeeder;
+    private readonly AuthSettings                      _authSettings;
+    private readonly EmailServiceSettings              _emailSettings;
+    private readonly IEmailNotificationService         _email;
+    private readonly IValidator<RegisterDto>           _registerValidator;
+    private readonly IValidator<LoginDto>              _loginValidator;
+    private readonly IValidator<ForgotPasswordDto>     _forgotPasswordValidator;
+    private readonly IValidator<ResetPasswordDto>      _resetPasswordValidator;
+    private readonly IValidator<VerifyEmailDto>        _verifyEmailValidator;
 
     public AuthService(
-        IUserRepository users,
-        IOrganizationRepository orgs,
-        IExternalLoginRepository externalLogins,
-        IRefreshTokenRepository refreshTokens,
-        ITokenService tokens,
-        IAccountSeeder accountSeeder,
-        AuthSettings authSettings,
-        IValidator<RegisterDto> registerValidator,
-        IValidator<LoginDto> loginValidator)
+        IUserRepository                   users,
+        IOrganizationRepository           orgs,
+        IExternalLoginRepository          externalLogins,
+        IRefreshTokenRepository           refreshTokens,
+        IPasswordResetTokenRepository     passwordResets,
+        IEmailVerificationTokenRepository emailVerifications,
+        ITokenService                     tokens,
+        IAccountSeeder                    accountSeeder,
+        AuthSettings                      authSettings,
+        EmailServiceSettings              emailSettings,
+        IEmailNotificationService         email,
+        IValidator<RegisterDto>           registerValidator,
+        IValidator<LoginDto>              loginValidator,
+        IValidator<ForgotPasswordDto>     forgotPasswordValidator,
+        IValidator<ResetPasswordDto>      resetPasswordValidator,
+        IValidator<VerifyEmailDto>        verifyEmailValidator)
     {
-        _users             = users;
-        _orgs              = orgs;
-        _externalLogins    = externalLogins;
-        _refreshTokens     = refreshTokens;
-        _tokens            = tokens;
-        _accountSeeder     = accountSeeder;
-        _authSettings      = authSettings;
-        _registerValidator = registerValidator;
-        _loginValidator    = loginValidator;
+        _users                   = users;
+        _orgs                    = orgs;
+        _externalLogins          = externalLogins;
+        _refreshTokens           = refreshTokens;
+        _passwordResets          = passwordResets;
+        _emailVerifications      = emailVerifications;
+        _tokens                  = tokens;
+        _accountSeeder           = accountSeeder;
+        _authSettings            = authSettings;
+        _emailSettings           = emailSettings;
+        _email                   = email;
+        _registerValidator       = registerValidator;
+        _loginValidator          = loginValidator;
+        _forgotPasswordValidator = forgotPasswordValidator;
+        _resetPasswordValidator  = resetPasswordValidator;
+        _verifyEmailValidator    = verifyEmailValidator;
     }
 
     private int RefreshExpiryDays => _authSettings.RefreshExpiryDays;
+
+    // ── Register ────────────────────────────────────────────────────────────
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto, CancellationToken ct = default)
     {
@@ -85,12 +116,20 @@ public class AuthService : IAuthService
         await _orgs.AddMembershipAsync(membership, ct);
         await _accountSeeder.SeedAsync(org.Id, ct);
 
-        var accessToken = _tokens.GenerateToken(user, org.Id, membership.Role);
-        var rawRefresh  = await IssueRefreshTokenAsync(user.Id, org.Id, ct);
+        var accessToken      = _tokens.GenerateToken(user, org.Id, membership.Role);
+        var rawRefresh       = await IssueRefreshTokenAsync(user.Id, org.Id, ct);
+        var rawVerification  = await IssueEmailVerificationTokenAsync(user.Id, ct);
         await _users.SaveChangesAsync(ct);
+
+        var verificationUrl = $"{_emailSettings.AppUrl}/verify-email?token={Uri.EscapeDataString(rawVerification)}";
+
+        // Welcome email is sent only after email verification
+        _ = _email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl);
 
         return BuildResponse(accessToken, rawRefresh, user, org, membership.Role);
     }
+
+    // ── Login ────────────────────────────────────────────────────────────────
 
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto, CancellationToken ct = default)
     {
@@ -120,6 +159,8 @@ public class AuthService : IAuthService
         return BuildResponse(accessToken, rawRefresh, user, org, membership.Role);
     }
 
+    // ── Switch org ──────────────────────────────────────────────────────────
+
     public async Task<AuthResponseDto> SwitchOrgAsync(Guid userId, Guid orgId, CancellationToken ct = default)
     {
         var user = await _users.GetByIdAsync(userId, ct)
@@ -138,6 +179,8 @@ public class AuthService : IAuthService
         return BuildResponse(accessToken, rawRefresh, user, org, role);
     }
 
+    // ── Refresh / Revoke ────────────────────────────────────────────────────
+
     public async Task<AuthResponseDto> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
         var hash   = HashToken(refreshToken);
@@ -146,7 +189,6 @@ public class AuthService : IAuthService
         if (stored is null || stored.IsRevoked || stored.ExpiresAtUtc < DateTime.UtcNow)
             throw new UnauthorizedAccessException("Token de actualización inválido o expirado.");
 
-        // Rotate: revoke the consumed token immediately
         stored.IsRevoked = true;
 
         var user = await _users.GetByIdAsync(stored.UserId, ct)
@@ -182,6 +224,113 @@ public class AuthService : IAuthService
             .ToList();
     }
 
+    // ── Password recovery ───────────────────────────────────────────────────
+
+    public async Task ForgotPasswordAsync(ForgotPasswordDto dto, CancellationToken ct = default)
+    {
+        await _forgotPasswordValidator.ValidateAndThrowAsync(dto, ct);
+
+        // Never reveal whether the email exists
+        var login = await _externalLogins.GetByProviderAsync(
+            AuthProvider.Email, dto.Email.ToLowerInvariant(), ct);
+        if (login is null) return;
+
+        var user = login.User;
+
+        // Invalidate any existing reset tokens
+        await _passwordResets.DeleteAllForUserAsync(user.Id, ct);
+
+        var rawToken  = GenerateRaw();
+        var tokenHash = HashToken(rawToken);
+        await _passwordResets.AddAsync(new PasswordResetToken
+        {
+            UserId       = user.Id,
+            TokenHash    = tokenHash,
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
+        }, ct);
+        await _passwordResets.SaveChangesAsync(ct);
+
+        var resetUrl = $"{_emailSettings.AppUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
+        _ = _email.SendPasswordResetAsync(user.Email, user.FirstName, resetUrl);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto dto, CancellationToken ct = default)
+    {
+        await _resetPasswordValidator.ValidateAndThrowAsync(dto, ct);
+
+        var hash  = HashToken(dto.Token);
+        var token = await _passwordResets.GetByHashAsync(hash, ct)
+            ?? throw new InvalidOperationException("El enlace de recuperación es inválido o ya fue utilizado.");
+
+        if (!token.IsValid)
+            throw new InvalidOperationException("El enlace de recuperación ha expirado. Solicita uno nuevo.");
+
+        var user = await _users.GetByIdAsync(token.UserId, ct)
+            ?? throw new InvalidOperationException("Usuario no encontrado.");
+
+        var login = await _externalLogins.GetByProviderAsync(
+            AuthProvider.Email, user.Email, ct)
+            ?? throw new InvalidOperationException("Inicio de sesión no encontrado.");
+
+        login.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        token.UsedAtUtc    = DateTime.UtcNow;
+
+        // Revoke all sessions — the user must log in again with the new password
+        await _refreshTokens.RevokeAllForUserAsync(user.Id, ct);
+        await _passwordResets.SaveChangesAsync(ct);
+    }
+
+    // ── Email verification ──────────────────────────────────────────────────
+
+    public async Task VerifyEmailAsync(VerifyEmailDto dto, CancellationToken ct = default)
+    {
+        await _verifyEmailValidator.ValidateAndThrowAsync(dto, ct);
+
+        var hash  = HashToken(dto.Token);
+        var token = await _emailVerifications.GetByHashAsync(hash, ct)
+            ?? throw new InvalidOperationException("El enlace de verificación es inválido.");
+
+        if (token.ExpiresAtUtc <= DateTime.UtcNow)
+            throw new InvalidOperationException("El enlace de verificación ha expirado. Solicita uno nuevo.");
+
+        var user = await _users.GetForUpdateAsync(token.UserId, ct)
+            ?? throw new InvalidOperationException("Usuario no encontrado.");
+
+        if (user.EmailVerifiedAt.HasValue)
+        {
+            await _emailVerifications.DeleteAllForUserAsync(user.Id, ct);
+            await _emailVerifications.SaveChangesAsync(ct);
+            return;
+        }
+
+        user.EmailVerifiedAt = DateTime.UtcNow;
+        await _emailVerifications.DeleteAllForUserAsync(user.Id, ct);
+        await _emailVerifications.SaveChangesAsync(ct);
+
+        // Now that the email is confirmed, send the welcome message
+        var membership = await _orgs.GetFirstMembershipAsync(user.Id, ct);
+        var org = membership is not null
+            ? await _orgs.GetByIdAsync(membership.OrganizationId, ct)
+            : null;
+        _ = _email.SendWelcomeAsync(user.Email, user.FirstName, org?.Name ?? "");
+    }
+
+    public async Task ResendVerificationAsync(ForgotPasswordDto dto, CancellationToken ct = default)
+    {
+        await _forgotPasswordValidator.ValidateAndThrowAsync(dto, ct);
+
+        var user = await _users.GetByEmailAsync(dto.Email.ToLowerInvariant(), ct);
+        if (user is null || user.EmailVerifiedAt.HasValue) return;
+
+        await _emailVerifications.DeleteAllForUserAsync(user.Id, ct);
+
+        var rawToken = await IssueEmailVerificationTokenAsync(user.Id, ct);
+        await _emailVerifications.SaveChangesAsync(ct);
+
+        var verificationUrl = $"{_emailSettings.AppUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
+        _ = _email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private async Task<string> IssueRefreshTokenAsync(Guid userId, Guid orgId, CancellationToken ct)
@@ -198,6 +347,19 @@ public class AuthService : IAuthService
         return raw;
     }
 
+    private async Task<string> IssueEmailVerificationTokenAsync(Guid userId, CancellationToken ct)
+    {
+        var raw  = GenerateRaw();
+        var hash = HashToken(raw);
+        await _emailVerifications.AddAsync(new EmailVerificationToken
+        {
+            UserId       = userId,
+            TokenHash    = hash,
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(24),
+        }, ct);
+        return raw;
+    }
+
     private AuthResponseDto BuildResponse(
         string accessToken, string refreshToken,
         User user, Organization org, string role) =>
@@ -207,7 +369,7 @@ public class AuthService : IAuthService
             ExpiresIn:        _tokens.ExpirySeconds,
             RefreshToken:     refreshToken,
             RefreshExpiresIn: RefreshExpiryDays * 86400,
-            User:             new UserDto(user.Id, user.Email, user.FirstName, user.LastName),
+            User:             new UserDto(user.Id, user.Email, user.FirstName, user.LastName, user.EmailVerifiedAt.HasValue),
             Organization:     new OrganizationDto(org.Id, org.Name, role)
         );
 

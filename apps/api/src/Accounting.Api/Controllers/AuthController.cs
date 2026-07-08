@@ -57,4 +57,39 @@ public class AuthController : ControllerBase
         await _auth.RevokeAsync(dto.RefreshToken, ct);
         return NoContent();
     }
+
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordDto dto, CancellationToken ct)
+    {
+        await _auth.ForgotPasswordAsync(dto, ct);
+        return Ok(new { message = "Si el email está registrado, recibirás un enlace para restablecer tu contraseña." });
+    }
+
+    [HttpPost("reset-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordDto dto, CancellationToken ct)
+    {
+        await _auth.ResetPasswordAsync(dto, ct);
+        return Ok(new { message = "Contraseña actualizada correctamente. Ya puedes iniciar sesión." });
+    }
+
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail(
+        [FromBody] VerifyEmailDto dto, CancellationToken ct)
+    {
+        await _auth.VerifyEmailAsync(dto, ct);
+        return Ok(new { message = "Email verificado correctamente." });
+    }
+
+    [HttpPost("resend-verification")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResendVerification(
+        [FromBody] ForgotPasswordDto dto, CancellationToken ct)
+    {
+        await _auth.ResendVerificationAsync(dto, ct);
+        return Ok(new { message = "Si el email está registrado y no verificado, recibirás un nuevo enlace." });
+    }
 }

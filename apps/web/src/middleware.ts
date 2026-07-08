@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AUTH_COOKIE    = "auth_token";
-const REFRESH_COOKIE = "refresh_token";
-const ORG_COOKIE     = "org_id";
-const USER_ID_COOKIE = "user_id";
-const ROLE_COOKIE    = "member_role";
-const NAME_COOKIE    = "display_name";
+const AUTH_COOKIE           = "auth_token";
+const REFRESH_COOKIE        = "refresh_token";
+const ORG_COOKIE            = "org_id";
+const USER_ID_COOKIE        = "user_id";
+const ROLE_COOKIE           = "member_role";
+const NAME_COOKIE           = "display_name";
+const EMAIL_VERIFIED_COOKIE = "email_verified";
 
-const PUBLIC_ROUTES    = ["/login", "/register"];
+const PUBLIC_ROUTES    = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/invite"];
 const PROTECTED_PREFIX = "/dashboard";
 
 const COOKIE_OPTS = {
@@ -35,9 +36,23 @@ export async function middleware(request: NextRequest) {
   const isPublic    = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
   const isProtected = pathname.startsWith(PROTECTED_PREFIX);
 
-  // Logged-in user hitting login/register → redirect to dashboard
-  if (token && isPublic) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // "false" explicitly = unverified. Absent cookie = treat as verified (backwards compat for existing sessions)
+  const emailVerified = request.cookies.get(EMAIL_VERIFIED_COOKIE)?.value !== "false";
+
+  if (token) {
+    if (!emailVerified) {
+      // Unverified users can only land on /verify-email
+      if (!pathname.startsWith("/verify-email")) {
+        return NextResponse.redirect(new URL("/verify-email?sent=true", request.url));
+      }
+      return NextResponse.next();
+    }
+
+    // Verified users hitting public auth pages → go to dashboard
+    // Exception: /invite must be accessible to accept/decline while logged in
+    if (isPublic && !pathname.startsWith("/invite")) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   // Not logged in hitting protected route → redirect to login
@@ -73,12 +88,13 @@ export async function middleware(request: NextRequest) {
 
           const response = NextResponse.next({ request: { headers: reqHeaders } });
 
-          response.cookies.set(AUTH_COOKIE,    data.accessToken,                                   { ...COOKIE_OPTS, maxAge: data.expiresIn });
-          response.cookies.set(REFRESH_COOKIE, data.refreshToken,                                  { ...COOKIE_OPTS, maxAge: data.refreshExpiresIn });
-          response.cookies.set(ORG_COOKIE,     data.organization.id,                               { ...COOKIE_OPTS, maxAge: data.expiresIn });
-          response.cookies.set(USER_ID_COOKIE, data.user.id,                                       { ...COOKIE_OPTS, maxAge: data.expiresIn });
-          response.cookies.set(ROLE_COOKIE,    data.organization.role,                             { ...COOKIE_OPTS, maxAge: data.expiresIn });
-          response.cookies.set(NAME_COOKIE,    `${data.user.firstName} ${data.user.lastName}`,     { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(AUTH_COOKIE,           data.accessToken,                                   { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(REFRESH_COOKIE,        data.refreshToken,                                  { ...COOKIE_OPTS, maxAge: data.refreshExpiresIn });
+          response.cookies.set(ORG_COOKIE,            data.organization.id,                               { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(USER_ID_COOKIE,        data.user.id,                                       { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(ROLE_COOKIE,           data.organization.role,                             { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(NAME_COOKIE,           `${data.user.firstName} ${data.user.lastName}`,     { ...COOKIE_OPTS, maxAge: data.expiresIn });
+          response.cookies.set(EMAIL_VERIFIED_COOKIE, data.user.emailVerified ? "true" : "false",         { ...COOKIE_OPTS, maxAge: data.expiresIn });
 
           return response;
         } else {

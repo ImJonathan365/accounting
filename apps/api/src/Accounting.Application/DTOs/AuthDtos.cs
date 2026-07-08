@@ -20,7 +20,14 @@ public record AuthResponseDto(
 
 public record RefreshDto(string RefreshToken);
 
-public record UserDto(Guid Id, string Email, string FirstName, string LastName);
+public record DeleteAccountDto(string Password);
+public record ChangePasswordDto(string CurrentPassword, string NewPassword, string ConfirmNewPassword);
+
+public record ForgotPasswordDto(string Email);
+public record ResetPasswordDto(string Token, string NewPassword, string ConfirmNewPassword);
+public record VerifyEmailDto(string Token);
+
+public record UserDto(Guid Id, string Email, string FirstName, string LastName, bool EmailVerified);
 
 public record OrganizationDto(Guid Id, string Name, string Role);
 
