@@ -38,6 +38,15 @@ export interface CreateRecurringEntryRequest {
   lines:       CreateRecurringLine[];
 }
 
+export interface UpdateRecurringEntryRequest {
+  description?: string;
+  reference?:   string | null;
+  frequency?:   RecurringFrequency;
+  nextDate?:    string;
+  endDate?:     string | null;
+  isActive?:    boolean;
+}
+
 export interface GeneratePendingResult {
   generated: number;
   entryIds:  string[];

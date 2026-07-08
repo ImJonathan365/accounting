@@ -20,17 +20,20 @@ function useGroups(userRole?: string): Array<{ label: string; href?: string; exa
     {
       label: "Contabilidad",
       items: [
-        { href: "/dashboard/accounts", label: "Cuentas" },
-        { href: "/dashboard/journal",  label: "Diario" },
-        ...(isAdmin ? [{ href: "/dashboard/periods",  label: "Períodos" }] : []),
-        ...(isOwner ? [{ href: "/dashboard/year-end", label: "Cierre anual" }] : []),
+        { href: "/dashboard/accounts",          label: "Cuentas" },
+        { href: "/dashboard/journal",           label: "Diario" },
+        ...(isAdmin ? [{ href: "/dashboard/opening-balances", label: "Saldos iniciales" }] : []),
+        ...(isAdmin ? [{ href: "/dashboard/periods",          label: "Períodos" }] : []),
+        ...(isOwner ? [{ href: "/dashboard/year-end",         label: "Cierre anual" }] : []),
       ],
     },
     {
       label: "Facturación",
       items: [
-        { href: "/dashboard/contacts", label: "Contactos" },
-        { href: "/dashboard/invoices", label: "Facturas" },
+        { href: "/dashboard/contacts",  label: "Contactos" },
+        { href: "/dashboard/invoices",  label: "Facturas" },
+        { href: "/dashboard/products",  label: "Productos" },
+        { href: "/dashboard/tax-rates", label: "Impuestos" },
       ],
     },
     {

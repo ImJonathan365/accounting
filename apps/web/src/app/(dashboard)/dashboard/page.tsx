@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerToken, getCurrentOrgId } from "@/lib/auth";
 import { apiClient } from "@/lib/api-client";
-import type { DashboardSummary, RecentEntry } from "@accounting/types";
+import type { DashboardSummary, RecentEntry, OverdueInvoice } from "@accounting/types";
 import { IncomeExpenseChart, EquityTrendChart, RatioCards } from "./_components/DashboardCharts";
 
 export const dynamic = "force-dynamic";
@@ -81,8 +81,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* KPI cards — contabilidad */}
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total activos"
           value={hasData ? fmt(summary!.totalAssets, s) : "—"}
@@ -129,6 +129,52 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* KPI cards — facturación */}
+      {hasData && (
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Por cobrar"
+            value={fmt(summary!.pendingReceivable, s)}
+            sub="Facturas emitidas pendientes"
+            color="green"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+              </svg>
+            }
+          />
+          <MetricCard
+            label="Por pagar"
+            value={fmt(summary!.pendingPayable, s)}
+            sub="Facturas de proveedores pendientes"
+            color="slate"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+              </svg>
+            }
+          />
+          <MetricCard
+            label="Facturas vencidas"
+            value={String(summary!.overdueCount)}
+            sub={summary!.overdueCount > 0 ? fmt(summary!.overdueAmount, s) + " pendiente" : "Sin vencidas"}
+            color={summary!.overdueCount > 0 ? "red" : "slate"}
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            }
+          />
+          <Link href="/dashboard/invoices/new" className="block">
+            <div className="h-full rounded-xl border border-dashed border-indigo-300 bg-indigo-50/50 p-5 hover:bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/20 dark:hover:bg-indigo-950/40 transition-colors">
+              <p className="text-xs font-medium uppercase tracking-wide text-indigo-400">Acción rápida</p>
+              <p className="mt-1.5 text-xl font-bold text-indigo-700 dark:text-indigo-300">+ Nueva factura</p>
+              <p className="mt-1 text-xs text-indigo-400">Cobro o pago</p>
+            </div>
+          </Link>
+        </div>
+      )}
+
       {/* Charts section */}
       {hasData && summary!.monthlyTrend.length > 0 && (
         <div className="mb-8 space-y-6">
@@ -142,7 +188,7 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent entries */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Últimos asientos</h3>
             <Link
@@ -204,6 +250,56 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        {/* Right column: overdue + quick links */}
+        <div className="space-y-6">
+        {/* Overdue invoices panel */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Facturas vencidas
+              {hasData && summary!.overdueCount > 0 && (
+                <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-600 dark:bg-red-900/40 dark:text-red-400">
+                  {summary!.overdueCount}
+                </span>
+              )}
+            </h3>
+            <Link href="/dashboard/invoices" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+              Ver facturas →
+            </Link>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            {!hasData || summary!.overdueInvoices.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-slate-400">Sin facturas vencidas</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                {summary!.overdueInvoices.slice(0, 5).map((inv: OverdueInvoice) => {
+                  const due  = new Date(inv.dueDate);
+                  const days = Math.floor((Date.now() - due.getTime()) / 86400000);
+                  return (
+                    <li key={inv.id}>
+                      <Link
+                        href={`/dashboard/invoices/${inv.id}`}
+                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{inv.number}</p>
+                          <p className="text-xs text-slate-400 truncate">{inv.contactName}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold tabular-nums">{fmt(inv.balance, s)}</p>
+                          <p className="text-xs text-red-500">{days}d vencida</p>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+
         {/* Quick links */}
         <div>
           <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Accesos rápidos</h3>
@@ -227,6 +323,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
+        </div>{/* end right column space-y-6 */}
       </div>
     </>
   );

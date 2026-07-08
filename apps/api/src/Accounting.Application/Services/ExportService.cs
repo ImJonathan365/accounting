@@ -15,4 +15,6 @@ public interface IExportService
 
     Task<ExportResult> ExportCashFlowAsync(
         Guid orgId, DateOnly from, DateOnly to, string format, CancellationToken ct = default);
+
+    byte[] GenerateInvoicePdf(InvoiceDto invoice, OrgSettingsDto settings);
 }

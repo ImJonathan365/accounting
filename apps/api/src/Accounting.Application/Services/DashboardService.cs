@@ -16,17 +16,20 @@ public class DashboardService : IDashboardService
     private readonly IJournalRepository   _journal;
     private readonly IAccountRepository   _accounts;
     private readonly IOrgSettingsService  _settings;
+    private readonly IInvoiceRepository   _invoices;
 
     public DashboardService(
         IReportRepository   reports,
         IJournalRepository  journal,
         IAccountRepository  accounts,
-        IOrgSettingsService settings)
+        IOrgSettingsService settings,
+        IInvoiceRepository  invoices)
     {
         _reports  = reports;
         _journal  = journal;
         _accounts = accounts;
         _settings = settings;
+        _invoices = invoices;
     }
 
     public async Task<DashboardSummaryDto> GetSummaryAsync(Guid orgId, CancellationToken ct = default)
@@ -41,6 +44,7 @@ public class DashboardService : IDashboardService
         var orgSettings    = await _settings.GetAsync(orgId, ct);
         var allAccounts    = await _accounts.GetByOrganizationAsync(orgId, ct);
         var monthlyLines   = await _reports.GetMonthlyTrendsAsync(orgId, trendStart, today, ct);
+        var allInvoices    = await _invoices.GetByOrganizationAsync(orgId, ct: ct);
 
         var accountMap = allAccounts.ToDictionary(a => a.Id);
 
@@ -121,12 +125,48 @@ public class DashboardService : IDashboardService
             e.Id, e.Date, e.Description, e.Reference,
             e.Lines.Sum(l => l.Debit), e.Status)).ToList();
 
+        // ── Invoice KPIs ───────────────────────────────────────────────────────
+
+        static decimal InvBalance(Domain.Entities.Invoice i) =>
+            i.Lines.Sum(l => l.Quantity * l.UnitPrice * (1 + (l.TaxRate?.Rate ?? 0) / 100))
+            - i.Payments.Sum(p => p.Amount);
+
+        var activeUnpaid = allInvoices
+            .Where(i => i.Status == Domain.Enums.InvoiceStatus.Issued
+                     || i.Status == Domain.Enums.InvoiceStatus.PartiallyPaid)
+            .ToList();
+
+        decimal pendingReceivable = activeUnpaid
+            .Where(i => i.Type == Domain.Enums.InvoiceType.Receivable)
+            .Sum(InvBalance);
+
+        decimal pendingPayable = activeUnpaid
+            .Where(i => i.Type == Domain.Enums.InvoiceType.Payable)
+            .Sum(InvBalance);
+
+        var overdueList = activeUnpaid
+            .Where(i => i.DueDate < today)
+            .OrderBy(i => i.DueDate)
+            .Select(i => new OverdueInvoiceDto(
+                i.Id, i.Number, i.Contact?.Name ?? "",
+                i.DueDate.ToString("yyyy-MM-dd"),
+                i.Type.ToString(),
+                InvBalance(i)))
+            .ToList();
+
+        // ── Build response ─────────────────────────────────────────────────────
+
         var monthName = today.ToString("MMMM", new CultureInfo("es-GT"));
         var period    = $"Enero – {char.ToUpper(monthName[0]) + monthName[1..]} {today.Year}";
 
         return new DashboardSummaryDto(
             totalAssets, totalLiabilities, totalEquity, netIncome,
             IsProfit: netIncome >= 0, isBalanced, recent,
-            orgSettings.CurrencySymbol, period, monthlyTrend, ratios);
+            orgSettings.CurrencySymbol, period, monthlyTrend, ratios,
+            OverdueCount: overdueList.Count,
+            OverdueAmount: overdueList.Sum(i => i.Balance),
+            PendingReceivable: pendingReceivable,
+            PendingPayable: pendingPayable,
+            OverdueInvoices: overdueList);
     }
 }

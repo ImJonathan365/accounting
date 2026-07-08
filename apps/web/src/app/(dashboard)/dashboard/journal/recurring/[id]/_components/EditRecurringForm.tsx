@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { RecurringEntry, RecurringFrequency } from "@accounting/types";
+import type { RecurringEntry, RecurringFrequency, UpdateRecurringEntryRequest } from "@accounting/types";
 
 const FREQUENCIES: { value: RecurringFrequency; label: string }[] = [
   { value: "Weekly",    label: "Semanal" },
@@ -39,14 +39,15 @@ export function EditRecurringForm({ entry, orgId, token }: Props) {
 
     startTransition(async () => {
       try {
-        await apiClient.recurring.update(orgId, entry.id, {
+        const payload: UpdateRecurringEntryRequest = {
           description: description.trim(),
           reference:   reference.trim() || null,
           frequency,
           nextDate,
           endDate:     endDate || null,
           isActive,
-        } as never, token);
+        };
+        await apiClient.recurring.update(orgId, entry.id, payload, token);
         toast.success("Plantilla actualizada.");
         router.push("/dashboard/journal/recurring");
         router.refresh();

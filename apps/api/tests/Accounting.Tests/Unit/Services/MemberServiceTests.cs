@@ -11,21 +11,23 @@ namespace Accounting.Tests.Unit.Services;
 
 public class MemberServiceTests
 {
-    private readonly IOrganizationRepository         _orgs    = Substitute.For<IOrganizationRepository>();
-    private readonly IUserRepository                 _users   = Substitute.For<IUserRepository>();
-    private readonly IValidator<InviteMemberDto>     _inviteV = Substitute.For<IValidator<InviteMemberDto>>();
-    private readonly IValidator<UpdateMemberRoleDto> _roleV   = Substitute.For<IValidator<UpdateMemberRoleDto>>();
+    private readonly IOrganizationRepository         _orgs        = Substitute.For<IOrganizationRepository>();
+    private readonly IUserRepository                 _users       = Substitute.For<IUserRepository>();
+    private readonly IMemberInvitationRepository     _invitations = Substitute.For<IMemberInvitationRepository>();
+    private readonly IEmailNotificationService       _email       = Substitute.For<IEmailNotificationService>();
+    private readonly IValidator<InviteMemberDto>     _inviteV     = Substitute.For<IValidator<InviteMemberDto>>();
+    private readonly IValidator<UpdateMemberRoleDto> _roleV       = Substitute.For<IValidator<UpdateMemberRoleDto>>();
     private readonly MemberService _sut;
 
-    private static readonly Guid OrgId       = Guid.NewGuid();
-    private static readonly Guid OwnerId     = Guid.NewGuid();
-    private static readonly Guid AdminId     = Guid.NewGuid();
-    private static readonly Guid MemberId    = Guid.NewGuid();
-    private static readonly Guid NewUserId   = Guid.NewGuid();
+    private static readonly Guid OrgId     = Guid.NewGuid();
+    private static readonly Guid OwnerId   = Guid.NewGuid();
+    private static readonly Guid AdminId   = Guid.NewGuid();
+    private static readonly Guid MemberId  = Guid.NewGuid();
+    private static readonly Guid NewUserId = Guid.NewGuid();
 
     public MemberServiceTests()
     {
-        _sut = new MemberService(_orgs, _users, _inviteV, _roleV);
+        _sut = new MemberService(_orgs, _users, _invitations, _email, _inviteV, _roleV);
 
         _inviteV.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
@@ -36,19 +38,19 @@ public class MemberServiceTests
     // ── InviteAsync ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task InviteAsync_OwnerInvitesNewUser_ReturnsMemberDto()
+    public async Task InviteAsync_OwnerInvitesNewUser_CreatesInvitation()
     {
         _orgs.GetMemberRoleAsync(OrgId, OwnerId, Arg.Any<CancellationToken>()).Returns("owner");
         _users.GetByEmailAsync("new@test.com", Arg.Any<CancellationToken>())
             .Returns(MakeUser(NewUserId, "new@test.com"));
         _orgs.IsOrgMemberAsync(OrgId, NewUserId, Arg.Any<CancellationToken>()).Returns(false);
+        _invitations.GetPendingAsync(OrgId, "new@test.com", Arg.Any<CancellationToken>())
+            .Returns((MemberInvitation?)null);
 
-        var result = await _sut.InviteAsync(OrgId, OwnerId, new InviteMemberDto("new@test.com", "member"));
+        await _sut.InviteAsync(OrgId, OwnerId, new InviteMemberDto("new@test.com", "member"));
 
-        result.Email.Should().Be("new@test.com");
-        result.Role.Should().Be("member");
-        await _orgs.Received(1).AddMembershipAsync(Arg.Any<Membership>(), Arg.Any<CancellationToken>());
-        await _orgs.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _invitations.Received(1).AddAsync(Arg.Any<MemberInvitation>(), Arg.Any<CancellationToken>());
+        await _invitations.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,10 +60,12 @@ public class MemberServiceTests
         _users.GetByEmailAsync("new@test.com", Arg.Any<CancellationToken>())
             .Returns(MakeUser(NewUserId, "new@test.com"));
         _orgs.IsOrgMemberAsync(OrgId, NewUserId, Arg.Any<CancellationToken>()).Returns(false);
+        _invitations.GetPendingAsync(OrgId, "new@test.com", Arg.Any<CancellationToken>())
+            .Returns((MemberInvitation?)null);
 
-        var result = await _sut.InviteAsync(OrgId, AdminId, new InviteMemberDto("new@test.com", "member"));
+        await _sut.InviteAsync(OrgId, AdminId, new InviteMemberDto("new@test.com", "member"));
 
-        result.Should().NotBeNull();
+        await _invitations.Received(1).AddAsync(Arg.Any<MemberInvitation>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -190,14 +194,13 @@ public class MemberServiceTests
     [Fact]
     public async Task RemoveAsync_LastOwner_ThrowsInvalidOperation()
     {
-        var ownerMembership = MakeMembership(OwnerId, OrgId, "owner");
-        var targetId        = Guid.NewGuid();
+        var targetId         = Guid.NewGuid();
         var targetMembership = MakeMembership(targetId, OrgId, "owner");
 
         _orgs.GetMemberRoleAsync(OrgId, OwnerId, Arg.Any<CancellationToken>()).Returns("owner");
         _orgs.GetMemberTrackedAsync(OrgId, targetId, Arg.Any<CancellationToken>()).Returns(targetMembership);
         _orgs.GetMembersWithUsersAsync(OrgId, Arg.Any<CancellationToken>())
-            .Returns(new List<Membership> { targetMembership }); // only 1 owner
+            .Returns(new List<Membership> { targetMembership });
 
         await _sut.Invoking(s => s.RemoveAsync(OrgId, OwnerId, targetId))
             .Should().ThrowAsync<InvalidOperationException>()

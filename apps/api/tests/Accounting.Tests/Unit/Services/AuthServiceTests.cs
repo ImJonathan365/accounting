@@ -12,25 +12,34 @@ namespace Accounting.Tests.Unit.Services;
 
 public class AuthServiceTests
 {
-    private readonly IUserRepository             _users          = Substitute.For<IUserRepository>();
-    private readonly IOrganizationRepository     _orgs           = Substitute.For<IOrganizationRepository>();
-    private readonly IExternalLoginRepository    _externalLogins = Substitute.For<IExternalLoginRepository>();
-    private readonly IRefreshTokenRepository     _refreshTokens  = Substitute.For<IRefreshTokenRepository>();
-    private readonly ITokenService               _tokens         = Substitute.For<ITokenService>();
-    private readonly IAccountSeeder              _seeder         = Substitute.For<IAccountSeeder>();
-    private readonly IValidator<RegisterDto>     _registerV      = Substitute.For<IValidator<RegisterDto>>();
-    private readonly IValidator<LoginDto>        _loginV         = Substitute.For<IValidator<LoginDto>>();
-    private readonly AuthSettings                _settings       = new() { RefreshExpiryDays = 7 };
+    private readonly IUserRepository                  _users          = Substitute.For<IUserRepository>();
+    private readonly IOrganizationRepository          _orgs           = Substitute.For<IOrganizationRepository>();
+    private readonly IExternalLoginRepository         _externalLogins = Substitute.For<IExternalLoginRepository>();
+    private readonly IRefreshTokenRepository          _refreshTokens  = Substitute.For<IRefreshTokenRepository>();
+    private readonly IPasswordResetTokenRepository    _passwordResets = Substitute.For<IPasswordResetTokenRepository>();
+    private readonly IEmailVerificationTokenRepository _emailVerifs   = Substitute.For<IEmailVerificationTokenRepository>();
+    private readonly ITokenService                    _tokens         = Substitute.For<ITokenService>();
+    private readonly IAccountSeeder                   _seeder         = Substitute.For<IAccountSeeder>();
+    private readonly IEmailNotificationService        _email          = Substitute.For<IEmailNotificationService>();
+    private readonly IValidator<RegisterDto>          _registerV      = Substitute.For<IValidator<RegisterDto>>();
+    private readonly IValidator<LoginDto>             _loginV         = Substitute.For<IValidator<LoginDto>>();
+    private readonly IValidator<ForgotPasswordDto>    _forgotV        = Substitute.For<IValidator<ForgotPasswordDto>>();
+    private readonly IValidator<ResetPasswordDto>     _resetV         = Substitute.For<IValidator<ResetPasswordDto>>();
+    private readonly IValidator<VerifyEmailDto>       _verifyV        = Substitute.For<IValidator<VerifyEmailDto>>();
+    private readonly AuthSettings                     _settings       = new() { RefreshExpiryDays = 7 };
+    private readonly EmailServiceSettings             _emailSettings  = new() { BaseUrl = "", AppUrl = "http://localhost:3000" };
     private readonly AuthService _sut;
 
-    private static readonly Guid   UserId = Guid.NewGuid();
-    private static readonly Guid   OrgId  = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid OrgId  = Guid.NewGuid();
 
     public AuthServiceTests()
     {
         _sut = new AuthService(
             _users, _orgs, _externalLogins, _refreshTokens,
-            _tokens, _seeder, _settings, _registerV, _loginV);
+            _passwordResets, _emailVerifs,
+            _tokens, _seeder, _settings, _emailSettings,
+            _email, _registerV, _loginV, _forgotV, _resetV, _verifyV);
 
         _registerV.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());

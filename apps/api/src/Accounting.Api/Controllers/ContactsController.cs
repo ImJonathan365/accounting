@@ -17,11 +17,13 @@ public class ContactsController : ControllerBase
 {
     private readonly IContactService                _service;
     private readonly IValidator<CreateContactDto>   _createValidator;
+    private readonly IValidator<UpdateContactDto>   _updateValidator;
 
-    public ContactsController(IContactService service, IValidator<CreateContactDto> createValidator)
+    public ContactsController(IContactService service, IValidator<CreateContactDto> createValidator, IValidator<UpdateContactDto> updateValidator)
     {
         _service         = service;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpGet]
@@ -46,6 +48,7 @@ public class ContactsController : ControllerBase
     public async Task<ActionResult<ContactDto>> Update(Guid orgId, Guid id, [FromBody] UpdateContactDto dto, CancellationToken ct)
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _updateValidator.ValidateAndThrowAsync(dto, ct);
         return Ok(await _service.UpdateAsync(orgId, id, dto, ct));
     }
 }

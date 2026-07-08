@@ -11,7 +11,7 @@ public class BudgetRepository : IBudgetRepository
     public BudgetRepository(AppDbContext db) => _db = db;
 
     public Task<List<Budget>> GetByOrganizationAsync(Guid orgId, CancellationToken ct = default) =>
-        _db.Budgets
+        _db.Budgets.AsNoTracking()
             .Include(b => b.Lines).ThenInclude(l => l.Account)
             .Where(b => b.OrganizationId == orgId)
             .OrderByDescending(b => b.Year).ThenBy(b => b.Name)

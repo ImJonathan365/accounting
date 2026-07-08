@@ -57,8 +57,9 @@ public class BudgetService : IBudgetService
         var budget = await _repo.GetByIdAsync(orgId, budgetId, ct)
             ?? throw new KeyNotFoundException("Presupuesto no encontrado.");
 
-        var account = await _accounts.GetByIdAsync(dto.AccountId, orgId, ct)
-            ?? throw new KeyNotFoundException("Cuenta no encontrada.");
+        var accountExists = await _accounts.GetByIdAsync(dto.AccountId, orgId, ct) is not null;
+        if (!accountExists)
+            throw new KeyNotFoundException("Cuenta no encontrada.");
 
         var existing = budget.Lines.FirstOrDefault(l => l.AccountId == dto.AccountId && l.Month == dto.Month);
         if (existing is not null)
@@ -76,7 +77,6 @@ public class BudgetService : IBudgetService
                 AccountId = dto.AccountId,
                 Month     = dto.Month,
                 Amount    = dto.Amount,
-                Account   = account,
             });
         }
 

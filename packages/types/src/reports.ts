@@ -26,18 +26,32 @@ export interface RecentEntry {
   status: JournalStatus;
 }
 
+export interface OverdueInvoice {
+  id:          string;
+  number:      string;
+  contactName: string;
+  dueDate:     string;
+  type:        string;
+  balance:     number;
+}
+
 export interface DashboardSummary {
-  totalAssets:      number;
-  totalLiabilities: number;
-  totalEquity:      number;
-  netIncome:        number;
-  isProfit:         boolean;
-  isBalanced:       boolean;
-  recentEntries:    RecentEntry[];
-  currencySymbol:   string;
-  periodLabel:      string;
-  monthlyTrend:     MonthlyTrend[];
-  ratios:           FinancialRatios;
+  totalAssets:        number;
+  totalLiabilities:   number;
+  totalEquity:        number;
+  netIncome:          number;
+  isProfit:           boolean;
+  isBalanced:         boolean;
+  recentEntries:      RecentEntry[];
+  currencySymbol:     string;
+  periodLabel:        string;
+  monthlyTrend:       MonthlyTrend[];
+  ratios:             FinancialRatios;
+  overdueCount:       number;
+  overdueAmount:      number;
+  pendingReceivable:  number;
+  pendingPayable:     number;
+  overdueInvoices:    OverdueInvoice[];
 }
 
 // ── Cash Flow Statement ───────────────────────────────────────────────────────

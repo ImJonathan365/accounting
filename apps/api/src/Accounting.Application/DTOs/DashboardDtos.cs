@@ -17,6 +17,14 @@ public record FinancialRatiosDto(
     decimal  DebtRatio,
     decimal? NetProfitMargin);
 
+public record OverdueInvoiceDto(
+    Guid   Id,
+    string Number,
+    string ContactName,
+    string DueDate,
+    string Type,
+    decimal Balance);
+
 public record DashboardSummaryDto(
     decimal TotalAssets,
     decimal TotalLiabilities,
@@ -28,4 +36,10 @@ public record DashboardSummaryDto(
     string CurrencySymbol,
     string PeriodLabel,
     List<MonthlyTrendDto> MonthlyTrend,
-    FinancialRatiosDto Ratios);
+    FinancialRatiosDto Ratios,
+    // Invoice KPIs
+    int     OverdueCount,
+    decimal OverdueAmount,
+    decimal PendingReceivable,
+    decimal PendingPayable,
+    List<OverdueInvoiceDto> OverdueInvoices);

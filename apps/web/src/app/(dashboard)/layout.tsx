@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { NavLinks } from "@/components/NavLinks";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [displayName, userRole, token, currentOrgId] = await Promise.all([
@@ -14,7 +15,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ? displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 
-  const orgs = token ? await apiClient.users.listOrgs(token).catch(() => []) : [];
+  const orgs         = token ? await apiClient.users.listOrgs(token).catch(() => []) : [];
+  const overdueInvoices = (token && currentOrgId)
+    ? await apiClient.invoices.overdue(currentOrgId, token).catch(() => [])
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -29,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell overdueInvoices={overdueInvoices} />
             <ThemeToggle />
             <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
             <UserMenu

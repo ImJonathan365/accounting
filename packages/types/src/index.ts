@@ -11,3 +11,5 @@ export * from "./recurring";
 export * from "./bank";
 export * from "./invoice";
 export * from "./budget";
+export * from "./catalog";
+export * from "./opening-balance";

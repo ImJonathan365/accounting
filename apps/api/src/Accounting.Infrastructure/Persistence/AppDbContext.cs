@@ -17,7 +17,9 @@ public class AppDbContext : DbContext
     public DbSet<JournalLine>          JournalLines           => Set<JournalLine>();
     public DbSet<OrganizationSettings> OrganizationSettings   => Set<OrganizationSettings>();
     public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
-    public DbSet<RefreshToken>         RefreshTokens          => Set<RefreshToken>();
+    public DbSet<RefreshToken>              RefreshTokens              => Set<RefreshToken>();
+    public DbSet<PasswordResetToken>        PasswordResetTokens        => Set<PasswordResetToken>();
+    public DbSet<EmailVerificationToken>    EmailVerificationTokens    => Set<EmailVerificationToken>();
     public DbSet<AccountingPeriod>       AccountingPeriods       => Set<AccountingPeriod>();
     public DbSet<YearEndClosing>         YearEndClosings         => Set<YearEndClosing>();
     public DbSet<RecurringJournalEntry>  RecurringJournalEntries => Set<RecurringJournalEntry>();
@@ -30,6 +32,9 @@ public class AppDbContext : DbContext
     public DbSet<InvoicePayment>  InvoicePayments  => Set<InvoicePayment>();
     public DbSet<Budget>          Budgets          => Set<Budget>();
     public DbSet<BudgetLine>      BudgetLines      => Set<BudgetLine>();
+    public DbSet<TaxRate>          TaxRates          => Set<TaxRate>();
+    public DbSet<Product>          Products          => Set<Product>();
+    public DbSet<MemberInvitation> MemberInvitations => Set<MemberInvitation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -587,4 +587,156 @@ public class ExportService : IExportService
             return $"\"{value.Replace("\"", "\"\"")}\"";
         return value;
     }
+
+    // ── Invoice PDF ───────────────────────────────────────────────────────────
+
+    public byte[] GenerateInvoicePdf(InvoiceDto inv, OrgSettingsDto s)
+    {
+        var cur    = s.CurrencySymbol;
+        var accent = "#4f46e5";
+        var light  = "#e0e7ff";
+        var gray   = "#64748b";
+
+        string Money(decimal v) => $"{cur} {v:N2}";
+
+        return Document.Create(doc =>
+        {
+            doc.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1.5f, Unit.Centimetre);
+
+                // ── Header ──────────────────────────────────────────────────
+                page.Header().Column(col =>
+                {
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text(s.CompanyName).Bold().FontSize(16).FontColor("#0f172a");
+                            if (s.TaxId    is not null) c.Item().Text($"NIT/RUC: {s.TaxId}").FontSize(8).FontColor(gray);
+                            if (s.Address  is not null) c.Item().Text(s.Address).FontSize(8).FontColor(gray);
+                            if (s.Phone    is not null) c.Item().Text(s.Phone).FontSize(8).FontColor(gray);
+                            if (s.Email    is not null) c.Item().Text(s.Email).FontSize(8).FontColor(gray);
+                        });
+                        row.ConstantItem(160).Background(accent).Padding(12).Column(c =>
+                        {
+                            var typeLabel = inv.Type == Accounting.Domain.Enums.InvoiceType.Receivable
+                                ? "FACTURA" : "FACTURA DE COMPRA";
+                            c.Item().Text(typeLabel).Bold().FontSize(14).FontColor("#ffffff");
+                            c.Item().Text($"No. {inv.Number}").FontSize(10).FontColor("#c7d2fe");
+                            c.Item().PaddingTop(4).Text($"Fecha: {inv.Date}").FontSize(8).FontColor("#e0e7ff");
+                            c.Item().Text($"Vence: {inv.DueDate}").FontSize(8).FontColor("#e0e7ff");
+                        });
+                    });
+                    col.Item().PaddingTop(4).LineHorizontal(1).LineColor(accent);
+                });
+
+                // ── Content ──────────────────────────────────────────────────
+                page.Content().PaddingTop(16).Column(col =>
+                {
+                    // Contact info
+                    col.Item().Background(light).Padding(10).Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text("FACTURAR A:").Bold().FontSize(8).FontColor(accent);
+                            c.Item().Text(inv.ContactName).Bold().FontSize(11).FontColor("#0f172a");
+                        });
+                        row.ConstantItem(160).Column(c =>
+                        {
+                            c.Item().Text("ESTADO:").Bold().FontSize(8).FontColor(accent);
+                            c.Item().Text(inv.StatusLabel).Bold().FontSize(11).FontColor("#0f172a");
+                        });
+                    });
+
+                    col.Item().PaddingTop(16);
+
+                    // Lines table
+                    col.Item().Table(table =>
+                    {
+                        var hasTax = inv.Lines.Any(l => l.TaxRatePercent > 0);
+                        table.ColumnsDefinition(c =>
+                        {
+                            c.RelativeColumn(5);
+                            c.RelativeColumn(1.2f);
+                            c.RelativeColumn(1.5f);
+                            if (hasTax) c.RelativeColumn(1.2f);
+                            if (hasTax) c.RelativeColumn(1.5f);
+                            c.RelativeColumn(1.8f);
+                        });
+
+                        void Th(string t, bool right = false)
+                            => TableHeaderCell(table.Cell(), t, accent, "#ffffff", right);
+
+                        Th("Descripción");
+                        Th("Cant.", true);
+                        Th("Precio unit.", true);
+                        if (hasTax) { Th("Impuesto", true); Th("Monto imp.", true); }
+                        Th("Total línea", true);
+
+                        foreach (var l in inv.Lines)
+                        {
+                            void Td(string t, bool right = false, bool bold = false)
+                            {
+                                var cell = table.Cell().BorderBottom(1).BorderColor("#f1f5f9").Padding(5);
+                                var txt  = (right ? cell.AlignRight() : cell).Text(t);
+                                if (bold) txt.Bold(); else txt.FontSize(9);
+                            }
+                            Td(l.Description);
+                            Td($"{l.Quantity:N2}", true);
+                            Td(Money(l.UnitPrice), true);
+                            if (hasTax)
+                            {
+                                Td(l.TaxRatePercent > 0 ? $"{l.TaxRateName} ({l.TaxRatePercent}%)" : "—", true);
+                                Td(l.TaxAmount > 0 ? Money(l.TaxAmount) : "—", true);
+                            }
+                            Td(Money(l.LineTotal), true);
+                        }
+                    });
+
+                    // Totals
+                    col.Item().PaddingTop(12).AlignRight().Column(tot =>
+                    {
+                        void TotRow(string label, decimal value, bool highlight = false)
+                        {
+                            tot.Item().Width(240).Row(r =>
+                            {
+                                var bg = highlight ? accent : "#f8fafc";
+                                var fg = highlight ? "#ffffff" : "#0f172a";
+                                r.RelativeItem().Background(bg).PaddingHorizontal(10).PaddingVertical(5)
+                                    .Text(label).FontSize(9).FontColor(fg);
+                                r.ConstantItem(100).Background(bg).PaddingHorizontal(10).PaddingVertical(5)
+                                    .AlignRight().Text(Money(value)).Bold().FontSize(9).FontColor(fg);
+                            });
+                        }
+
+                        if (inv.TaxTotal > 0)
+                        {
+                            TotRow("Subtotal", inv.SubTotal);
+                            TotRow("Impuesto", inv.TaxTotal);
+                        }
+                        TotRow("TOTAL", inv.Total, highlight: true);
+                        if (inv.Paid > 0)
+                        {
+                            TotRow("Pagado", inv.Paid);
+                            TotRow("Saldo", inv.Balance, highlight: inv.Balance > 0);
+                        }
+                    });
+
+                    // Notes
+                    if (inv.Notes is not null)
+                    {
+                        col.Item().PaddingTop(16).Background("#f8fafc").Padding(10).Column(c =>
+                        {
+                            c.Item().Text("NOTAS:").Bold().FontSize(8).FontColor(gray);
+                            c.Item().Text(inv.Notes).FontSize(9).FontColor("#374151");
+                        });
+                    }
+                });
+
+                page.Footer().Element(Footer);
+            });
+        }).GeneratePdf();
+    }
 }

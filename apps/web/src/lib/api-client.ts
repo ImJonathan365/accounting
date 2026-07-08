@@ -3,15 +3,17 @@ import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile, UpdatePr
 import type { AuditLog } from "@accounting/types";
 import type { Account, CreateAccountRequest, UpdateAccountRequest } from "@accounting/types";
 import type { JournalEntry, JournalEntrySummary, CreateJournalEntryRequest, UpdateJournalEntryRequest, VoidJournalEntryRequest, PagedResult } from "@accounting/types";
-import type { Member, InviteMemberRequest, UpdateMemberRoleRequest } from "@accounting/types";
+import type { Member, InviteMemberRequest, UpdateMemberRoleRequest, InvitationInfo } from "@accounting/types";
 import type { TrialBalance, IncomeStatement, BalanceSheet, DashboardSummary, Ledger, CashFlow } from "@accounting/types";
 import type { Period, ClosePeriodRequest } from "@accounting/types";
 import type { OrgSettings, UpdateOrgSettingsRequest } from "@accounting/types";
 import type { YearEndStatus, YearEndCloseRequest } from "@accounting/types";
-import type { RecurringEntry, CreateRecurringEntryRequest, GeneratePendingResult } from "@accounting/types";
+import type { RecurringEntry, CreateRecurringEntryRequest, UpdateRecurringEntryRequest, GeneratePendingResult } from "@accounting/types";
 import type { BankAccount, BankReconciliation, BankTransaction, CreateBankAccountRequest, ImportBankTransactionRow } from "@accounting/types";
-import type { Contact, Invoice, CreateContactRequest, CreateInvoiceRequest, CreatePaymentRequest } from "@accounting/types";
+import type { Contact, Invoice, CreateContactRequest, UpdateContactRequest, CreateInvoiceRequest, CreatePaymentRequest } from "@accounting/types";
 import type { Budget, BudgetVsActual, CreateBudgetRequest, UpsertBudgetLineRequest } from "@accounting/types";
+import type { TaxRate, CreateTaxRateRequest, Product, CreateProductRequest } from "@accounting/types";
+import type { OverdueInvoice, SetOpeningBalancesRequest, OpeningBalanceResult } from "@accounting/types";
 
 export class ApiError extends Error {
   constructor(
@@ -82,6 +84,18 @@ export const apiClient = {
 
     logout: (refreshToken: string) =>
       request<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+
+    forgotPassword: (email: string) =>
+      request<{ message: string }>("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+
+    resetPassword: (token: string, newPassword: string, confirmNewPassword: string) =>
+      request<{ message: string }>("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, newPassword, confirmNewPassword }) }),
+
+    verifyEmail: (token: string) =>
+      request<{ message: string }>("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+
+    resendVerification: (email: string) =>
+      request<{ message: string }>("/api/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) }),
   },
 
   users: {
@@ -93,6 +107,12 @@ export const apiClient = {
 
     listOrgs: (token: string) =>
       request<UserOrg[]>("/api/users/me/organizations", {}, token),
+
+    changePassword: (currentPassword: string, newPassword: string, confirmNewPassword: string, token: string) =>
+      request<void>("/api/users/me/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }) }, token),
+
+    deleteAccount: (password: string, token: string) =>
+      request<void>("/api/users/me", { method: "DELETE", body: JSON.stringify({ password }) }, token),
   },
 
   accounts: {
@@ -194,11 +214,20 @@ export const apiClient = {
     list: (orgId: string, token: string) =>
       request<Member[]>(`/api/organizations/${orgId}/members`, {}, token),
     invite: (orgId: string, data: InviteMemberRequest, token: string) =>
-      request<Member>(`/api/organizations/${orgId}/members`, { method: "POST", body: JSON.stringify(data) }, token),
+      request<void>(`/api/organizations/${orgId}/members`, { method: "POST", body: JSON.stringify(data) }, token),
     updateRole: (orgId: string, userId: string, data: UpdateMemberRoleRequest, token: string) =>
       request<Member>(`/api/organizations/${orgId}/members/${userId}/role`, { method: "PUT", body: JSON.stringify(data) }, token),
     remove: (orgId: string, userId: string, token: string) =>
       request<void>(`/api/organizations/${orgId}/members/${userId}`, { method: "DELETE" }, token),
+  },
+
+  invitations: {
+    getInfo: (token: string) =>
+      request<InvitationInfo>(`/api/invitations/${encodeURIComponent(token)}`),
+    accept: (token: string, authToken: string) =>
+      request<Member>(`/api/invitations/${encodeURIComponent(token)}/accept`, { method: "POST" }, authToken),
+    decline: (token: string) =>
+      request<void>(`/api/invitations/${encodeURIComponent(token)}/decline`, { method: "POST" }),
   },
 
   audit: {
@@ -239,7 +268,7 @@ export const apiClient = {
       request<RecurringEntry>(
         `/api/organizations/${orgId}/recurring-entries`,
         { method: "POST", body: JSON.stringify(data) }, token),
-    update: (orgId: string, id: string, data: Partial<RecurringEntry>, token: string) =>
+    update: (orgId: string, id: string, data: UpdateRecurringEntryRequest, token: string) =>
       request<RecurringEntry>(
         `/api/organizations/${orgId}/recurring-entries/${id}`,
         { method: "PATCH", body: JSON.stringify(data) }, token),
@@ -277,7 +306,7 @@ export const apiClient = {
       request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, {}, token),
     create: (orgId: string, data: CreateContactRequest, token: string) =>
       request<Contact>(`/api/organizations/${orgId}/contacts`, { method: "POST", body: JSON.stringify(data) }, token),
-    update: (orgId: string, id: string, data: Partial<Contact>, token: string) =>
+    update: (orgId: string, id: string, data: UpdateContactRequest, token: string) =>
       request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
   },
 
@@ -294,6 +323,31 @@ export const apiClient = {
       request<Invoice>(`/api/organizations/${orgId}/invoices/${id}/payments`, { method: "POST", body: JSON.stringify(data) }, token),
     void: (orgId: string, id: string, token: string) =>
       request<Invoice>(`/api/organizations/${orgId}/invoices/${id}/void`, { method: "POST" }, token),
+    pdfUrl: (orgId: string, id: string) =>
+      `/api/organizations/${orgId}/invoices/${id}/pdf`,
+    overdue: (orgId: string, token: string) =>
+      request<OverdueInvoice[]>(`/api/organizations/${orgId}/invoices/overdue`, {}, token),
+  },
+
+  openingBalances: {
+    set: (orgId: string, data: SetOpeningBalancesRequest, token: string) =>
+      request<OpeningBalanceResult>(`/api/organizations/${orgId}/opening-balances`, { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  taxRates: {
+    list: (orgId: string, token: string) =>
+      request<TaxRate[]>(`/api/organizations/${orgId}/tax-rates`, {}, token),
+    create: (orgId: string, data: CreateTaxRateRequest, token: string) =>
+      request<TaxRate>(`/api/organizations/${orgId}/tax-rates`, { method: "POST", body: JSON.stringify(data) }, token),
+  },
+
+  products: {
+    list: (orgId: string, token: string) =>
+      request<Product[]>(`/api/organizations/${orgId}/products`, {}, token),
+    create: (orgId: string, data: CreateProductRequest, token: string) =>
+      request<Product>(`/api/organizations/${orgId}/products`, { method: "POST", body: JSON.stringify(data) }, token),
+    update: (orgId: string, id: string, data: Partial<CreateProductRequest> & { isActive?: boolean }, token: string) =>
+      request<Product>(`/api/organizations/${orgId}/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
   },
 
   budgets: {

@@ -12,7 +12,7 @@ public class BankRepository : IBankRepository
     public BankRepository(AppDbContext db) => _db = db;
 
     public Task<List<BankAccount>> GetAccountsAsync(Guid orgId, CancellationToken ct = default) =>
-        _db.BankAccounts
+        _db.BankAccounts.AsNoTracking()
             .Include(a => a.LinkedAccount)
             .Include(a => a.Transactions)
             .Where(a => a.OrganizationId == orgId)
@@ -29,7 +29,7 @@ public class BankRepository : IBankRepository
         await _db.BankAccounts.AddAsync(account, ct);
 
     public Task<List<BankTransaction>> GetTransactionsAsync(Guid bankAccountId, CancellationToken ct = default) =>
-        _db.BankTransactions
+        _db.BankTransactions.AsNoTracking()
             .Where(t => t.BankAccountId == bankAccountId)
             .OrderByDescending(t => t.Date)
             .ToListAsync(ct);

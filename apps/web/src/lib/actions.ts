@@ -7,9 +7,10 @@ import { apiClient } from "./api-client";
 import type { CreateAccountRequest, UpdateAccountRequest, LoginRequest, RegisterRequest, UpdateProfileRequest, CreateJournalEntryRequest, UpdateJournalEntryRequest, VoidJournalEntryRequest, UpdateOrgSettingsRequest, InviteMemberRequest, UpdateMemberRoleRequest } from "@accounting/types";
 import { getServerToken, getCurrentOrgId, getCurrentUserId, getRefreshToken, USER_ID_COOKIE, ROLE_COOKIE, REFRESH_COOKIE } from "./auth";
 
-const TOKEN_COOKIE        = "auth_token";
-const ORG_COOKIE          = "org_id";
-const DISPLAY_NAME_COOKIE = "display_name";
+const TOKEN_COOKIE           = "auth_token";
+const ORG_COOKIE             = "org_id";
+const DISPLAY_NAME_COOKIE    = "display_name";
+const EMAIL_VERIFIED_COOKIE  = "email_verified";
 
 function cookieOpts(maxAge: number, httpOnly = true) {
   return {
@@ -25,24 +26,66 @@ import type { AuthResponse } from "@accounting/types";
 
 async function setAuthCookies(res: AuthResponse) {
   const store = await cookies();
-  store.set(TOKEN_COOKIE,        res.accessToken,                                cookieOpts(res.expiresIn));
-  store.set(REFRESH_COOKIE,      res.refreshToken,                               cookieOpts(res.refreshExpiresIn));
-  store.set(ORG_COOKIE,          res.organization.id,                            cookieOpts(res.expiresIn));
-  store.set(DISPLAY_NAME_COOKIE, `${res.user.firstName} ${res.user.lastName}`,   cookieOpts(res.expiresIn));
-  store.set(USER_ID_COOKIE,      res.user.id,                                    cookieOpts(res.expiresIn));
-  store.set(ROLE_COOKIE,         res.organization.role,                          cookieOpts(res.expiresIn));
+  store.set(TOKEN_COOKIE,          res.accessToken,                                cookieOpts(res.expiresIn));
+  store.set(REFRESH_COOKIE,        res.refreshToken,                               cookieOpts(res.refreshExpiresIn));
+  store.set(ORG_COOKIE,            res.organization.id,                            cookieOpts(res.expiresIn));
+  store.set(DISPLAY_NAME_COOKIE,   `${res.user.firstName} ${res.user.lastName}`,   cookieOpts(res.expiresIn));
+  store.set(USER_ID_COOKIE,        res.user.id,                                    cookieOpts(res.expiresIn));
+  store.set(ROLE_COOKIE,           res.organization.role,                          cookieOpts(res.expiresIn));
+  store.set(EMAIL_VERIFIED_COOKIE, res.user.emailVerified ? 'true' : 'false',      cookieOpts(res.expiresIn));
 }
 
-export async function loginAction(data: LoginRequest) {
+export async function loginAction(data: LoginRequest, next?: string) {
   const res = await apiClient.auth.login(data);
   await setAuthCookies(res);
-  redirect("/dashboard");
+  // next must start with "/" to prevent open redirect
+  redirect(next && next.startsWith("/") ? next : "/dashboard");
 }
 
 export async function registerAction(data: RegisterRequest) {
   const res = await apiClient.auth.register(data);
   await setAuthCookies(res);
-  redirect("/dashboard");
+  redirect("/verify-email?sent=true");
+}
+
+export async function changePasswordAction(currentPassword: string, newPassword: string, confirmNewPassword: string) {
+  const token = await getServerToken();
+  if (!token) throw new Error("No autenticado");
+  await apiClient.users.changePassword(currentPassword, newPassword, confirmNewPassword, token);
+}
+
+export async function deleteAccountAction(password: string) {
+  const token = await getServerToken();
+  if (!token) throw new Error("No autenticado");
+  await apiClient.users.deleteAccount(password, token);
+  const store = await cookies();
+  store.delete(TOKEN_COOKIE);
+  store.delete(REFRESH_COOKIE);
+  store.delete(ORG_COOKIE);
+  store.delete(DISPLAY_NAME_COOKIE);
+  store.delete(USER_ID_COOKIE);
+  store.delete(ROLE_COOKIE);
+  store.delete(EMAIL_VERIFIED_COOKIE);
+  redirect("/login");
+}
+
+export async function forgotPasswordAction(email: string) {
+  await apiClient.auth.forgotPassword(email);
+}
+
+export async function resetPasswordAction(token: string, newPassword: string, confirmNewPassword: string) {
+  await apiClient.auth.resetPassword(token, newPassword, confirmNewPassword);
+}
+
+export async function verifyEmailAction(token: string) {
+  await apiClient.auth.verifyEmail(token);
+  const store = await cookies();
+  // Mark email as verified so middleware unlocks the dashboard
+  store.set(EMAIL_VERIFIED_COOKIE, 'true', cookieOpts(60 * 60 * 24 * 30));
+}
+
+export async function resendVerificationAction(email: string) {
+  await apiClient.auth.resendVerification(email);
 }
 
 export async function switchOrgAction(orgId: string) {
@@ -66,6 +109,7 @@ export async function logoutAction() {
   store.delete(DISPLAY_NAME_COOKIE);
   store.delete(USER_ID_COOKIE);
   store.delete(ROLE_COOKIE);
+  store.delete(EMAIL_VERIFIED_COOKIE);
   redirect("/login");
 }
 
@@ -147,6 +191,20 @@ export async function updateOrgSettingsAction(data: UpdateOrgSettingsRequest) {
   const result = await apiClient.settings.update(orgId, data, token);
   revalidatePath("/dashboard/settings");
   return result;
+}
+
+export async function acceptInvitationAction(token: string, orgId: string) {
+  const authToken = await getServerToken();
+  if (!authToken) redirect("/login?next=" + encodeURIComponent(`/invite?token=${token}`));
+  await apiClient.invitations.accept(token, authToken);
+  // Switch active org to the one just joined, then go to dashboard
+  const res = await apiClient.auth.switchOrg({ orgId }, authToken);
+  await setAuthCookies(res);
+  redirect("/dashboard");
+}
+
+export async function declineInvitationAction(token: string) {
+  await apiClient.invitations.decline(token);
 }
 
 export async function inviteMemberAction(data: InviteMemberRequest) {

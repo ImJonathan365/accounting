@@ -15,3 +15,16 @@ public class CreateContactDtoValidator : AbstractValidator<CreateContactDto>
         RuleFor(x => x.Notes).MaximumLength(1000).When(x => x.Notes is not null);
     }
 }
+
+public class UpdateContactDtoValidator : AbstractValidator<UpdateContactDto>
+{
+    public UpdateContactDtoValidator()
+    {
+        RuleFor(x => x.Type).IsInEnum().When(x => x.Type.HasValue);
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(300).When(x => x.Name is not null);
+        RuleFor(x => x.Email).EmailAddress().MaximumLength(200).When(x => !string.IsNullOrEmpty(x.Email));
+        RuleFor(x => x.Phone).MaximumLength(50).When(x => x.Phone is not null);
+        RuleFor(x => x.Address).MaximumLength(500).When(x => x.Address is not null);
+        RuleFor(x => x.Notes).MaximumLength(1000).When(x => x.Notes is not null);
+    }
+}

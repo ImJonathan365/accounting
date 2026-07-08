@@ -55,6 +55,9 @@ builder.Services.AddScoped<IJournalRepository, JournalRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
+builder.Services.AddScoped<IMemberInvitationRepository, MemberInvitationRepository>();
 builder.Services.AddScoped<IOrganizationSettingsRepository, OrganizationSettingsRepository>();
 builder.Services.AddScoped<IAccountingPeriodRepository, AccountingPeriodRepository>();
 builder.Services.AddScoped<IYearEndClosingRepository, YearEndClosingRepository>();
@@ -67,6 +70,11 @@ builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
 // Validators
 builder.Services.AddScoped<IValidator<RegisterDto>, RegisterDtoValidator>();
 builder.Services.AddScoped<IValidator<LoginDto>, LoginDtoValidator>();
+builder.Services.AddScoped<IValidator<DeleteAccountDto>, DeleteAccountDtoValidator>();
+builder.Services.AddScoped<IValidator<ChangePasswordDto>, ChangePasswordDtoValidator>();
+builder.Services.AddScoped<IValidator<ForgotPasswordDto>, ForgotPasswordDtoValidator>();
+builder.Services.AddScoped<IValidator<ResetPasswordDto>, ResetPasswordDtoValidator>();
+builder.Services.AddScoped<IValidator<VerifyEmailDto>, VerifyEmailDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateAccountDto>, CreateAccountDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateAccountDto>, UpdateAccountDtoValidator>();
 builder.Services.AddScoped<IValidator<UpdateProfileDto>, UpdateProfileDtoValidator>();
@@ -83,10 +91,13 @@ builder.Services.AddScoped<IValidator<UpdateRecurringEntryDto>, UpdateRecurringE
 builder.Services.AddScoped<IValidator<CreateBankAccountDto>, CreateBankAccountDtoValidator>();
 builder.Services.AddScoped<IValidator<ImportBankTransactionDto>, ImportBankTransactionDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateContactDto>, CreateContactDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateContactDto>, UpdateContactDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateInvoiceDto>, CreateInvoiceDtoValidator>();
 builder.Services.AddScoped<IValidator<CreatePaymentDto>, CreatePaymentDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateBudgetDto>, CreateBudgetDtoValidator>();
 builder.Services.AddScoped<IValidator<UpsertBudgetLineDto>, UpsertBudgetLineDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateTaxRateDto>, CreateTaxRateDtoValidator>();
+builder.Services.AddScoped<IValidator<CreateProductDto>, CreateProductDtoValidator>();
 
 // Filters
 builder.Services.AddScoped<OrgMembershipFilter>();
@@ -115,6 +126,26 @@ builder.Services.AddScoped<IBankService, BankService>();
 builder.Services.AddScoped<IContactService, ContactService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IBudgetService, BudgetService>();
+builder.Services.AddScoped<ITaxRateRepository, TaxRateRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ITaxRateService, TaxRateService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
+
+// Email notification service
+var emailSettings = new EmailServiceSettings
+{
+    BaseUrl = builder.Configuration["EmailService:BaseUrl"] ?? "",
+    Secret  = builder.Configuration["EmailService:Secret"]  ?? "",
+    AppUrl  = builder.Configuration["EmailService:AppUrl"]  ?? "http://localhost:3000",
+};
+builder.Services.AddSingleton(emailSettings);
+builder.Services.AddHttpClient<IEmailNotificationService, Accounting.Infrastructure.Email.HttpEmailNotificationService>(client =>
+{
+    if (!string.IsNullOrEmpty(emailSettings.BaseUrl))
+        client.BaseAddress = new Uri(emailSettings.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"]

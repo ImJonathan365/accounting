@@ -13,7 +13,7 @@ public class ContactRepository : IContactRepository
 
     public Task<List<Contact>> GetByOrganizationAsync(Guid orgId, ContactType? type = null, CancellationToken ct = default)
     {
-        var q = _db.Contacts
+        var q = _db.Contacts.AsNoTracking()
             .Include(c => c.Invoices)
             .Where(c => c.OrganizationId == orgId);
 
