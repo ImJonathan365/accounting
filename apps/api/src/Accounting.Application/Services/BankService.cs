@@ -9,7 +9,7 @@ public interface IBankService
 {
     Task<List<BankAccountDto>>  GetAccountsAsync(Guid orgId, CancellationToken ct = default);
     Task<BankAccountDto>        CreateAccountAsync(Guid orgId, CreateBankAccountDto dto, CancellationToken ct = default);
-    Task<BankReconciliationDto> GetReconciliationAsync(Guid orgId, Guid bankAccountId, CancellationToken ct = default);
+    Task<BankReconciliationDto> GetReconciliationAsync(Guid orgId, Guid bankAccountId, int page = 1, int pageSize = 50, CancellationToken ct = default);
     Task<List<BankTransactionDto>> ImportTransactionsAsync(Guid orgId, Guid bankAccountId, List<ImportBankTransactionDto> rows, CancellationToken ct = default);
     Task<BankTransactionDto>    MatchTransactionAsync(Guid orgId, Guid transactionId, MatchTransactionDto dto, CancellationToken ct = default);
     Task<BankTransactionDto>    ExcludeTransactionAsync(Guid orgId, Guid transactionId, CancellationToken ct = default);
@@ -20,17 +20,20 @@ public class BankService : IBankService
 {
     private readonly IBankRepository    _repo;
     private readonly IAccountRepository _accounts;
+    private readonly IJournalRepository _journal;
 
-    public BankService(IBankRepository repo, IAccountRepository accounts)
+    public BankService(IBankRepository repo, IAccountRepository accounts, IJournalRepository journal)
     {
         _repo     = repo;
         _accounts = accounts;
+        _journal  = journal;
     }
 
     public async Task<List<BankAccountDto>> GetAccountsAsync(Guid orgId, CancellationToken ct = default)
     {
-        var list = await _repo.GetAccountsAsync(orgId, ct);
-        return list.Select(MapAccount).ToList();
+        var list   = await _repo.GetAccountsAsync(orgId, ct);
+        var counts = await _repo.GetPendingCountsAsync(orgId, ct);
+        return list.Select(a => MapAccount(a, counts.GetValueOrDefault(a.Id, 0))).ToList();
     }
 
     public async Task<BankAccountDto> CreateAccountAsync(Guid orgId, CreateBankAccountDto dto, CancellationToken ct = default)
@@ -54,25 +57,23 @@ public class BankService : IBankService
         return MapAccount(bankAccount);
     }
 
-    public async Task<BankReconciliationDto> GetReconciliationAsync(Guid orgId, Guid bankAccountId, CancellationToken ct = default)
+    public async Task<BankReconciliationDto> GetReconciliationAsync(
+        Guid orgId, Guid bankAccountId, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var account = await _repo.GetAccountAsync(orgId, bankAccountId, ct)
             ?? throw new KeyNotFoundException("Cuenta bancaria no encontrada.");
 
-        var transactions = await _repo.GetTransactionsAsync(bankAccountId, ct);
-        var unmatched    = transactions.Where(t => t.Status == BankTransactionStatus.Pending).ToList();
-
+        var (pendingItems, pendingTotal) = await _repo.GetPendingTransactionsPagedAsync(bankAccountId, page, pageSize, ct);
+        var bankBalance      = await _repo.GetBankBalanceAsync(bankAccountId, ct);
+        var bookBalance      = await _repo.GetGLBalanceAsync(orgId, account.LinkedAccountId, ct);
         var unmatchedJournal = await _repo.GetUnmatchedJournalEntriesAsync(orgId, account.LinkedAccountId, ct);
-
-        var bankBalance = transactions
-            .Where(t => t.Status != BankTransactionStatus.Excluded)
-            .Sum(t => t.Type == BankTransactionType.Credit ? t.Amount : -t.Amount);
-
-        var bookBalance = unmatchedJournal.Count == 0 ? bankBalance : 0;
+        var totalPages       = (int)Math.Ceiling(pendingTotal / (double)pageSize);
 
         return new BankReconciliationDto(
-            MapAccount(account),
-            unmatched.Select(MapTransaction).ToList(),
+            MapAccount(account, pendingTotal),
+            new PagedResult<BankTransactionDto>(
+                pendingItems.Select(MapTransaction).ToList(),
+                pendingTotal, page, pageSize, totalPages),
             unmatchedJournal.Select(j => new UnmatchedJournalDto(
                 j.Id, j.Date.ToString("yyyy-MM-dd"), j.Reference, j.Description, j.Amount)).ToList(),
             bankBalance,
@@ -92,9 +93,12 @@ public class BankService : IBankService
             Description   = r.Description.Trim(),
             Amount        = Math.Abs(r.Amount),
             Type          = r.Type.Equals("credit", StringComparison.OrdinalIgnoreCase)
-                            || r.Amount > 0
                             ? BankTransactionType.Credit
-                            : BankTransactionType.Debit,
+                            : r.Type.Equals("debit", StringComparison.OrdinalIgnoreCase)
+                                ? BankTransactionType.Debit
+                                : r.Amount >= 0
+                                    ? BankTransactionType.Credit
+                                    : BankTransactionType.Debit,
             Status        = BankTransactionStatus.Pending,
         }).ToList();
 
@@ -105,8 +109,11 @@ public class BankService : IBankService
 
     public async Task<BankTransactionDto> MatchTransactionAsync(Guid orgId, Guid transactionId, MatchTransactionDto dto, CancellationToken ct = default)
     {
-        var tx = await _repo.GetTransactionAsync(transactionId, ct)
+        var tx = await _repo.GetTransactionAsync(orgId, transactionId, ct)
             ?? throw new KeyNotFoundException("Transacción no encontrada.");
+
+        if (await _journal.GetByIdAsync(dto.JournalEntryId, orgId, ct) is null)
+            throw new ArgumentException("El asiento no pertenece a esta organización.");
 
         tx.JournalEntryId = dto.JournalEntryId;
         tx.Status         = BankTransactionStatus.Matched;
@@ -116,7 +123,7 @@ public class BankService : IBankService
 
     public async Task<BankTransactionDto> ExcludeTransactionAsync(Guid orgId, Guid transactionId, CancellationToken ct = default)
     {
-        var tx = await _repo.GetTransactionAsync(transactionId, ct)
+        var tx = await _repo.GetTransactionAsync(orgId, transactionId, ct)
             ?? throw new KeyNotFoundException("Transacción no encontrada.");
 
         tx.Status         = BankTransactionStatus.Excluded;
@@ -127,7 +134,7 @@ public class BankService : IBankService
 
     public async Task<BankTransactionDto> UnmatchTransactionAsync(Guid orgId, Guid transactionId, CancellationToken ct = default)
     {
-        var tx = await _repo.GetTransactionAsync(transactionId, ct)
+        var tx = await _repo.GetTransactionAsync(orgId, transactionId, ct)
             ?? throw new KeyNotFoundException("Transacción no encontrada.");
 
         tx.Status         = BankTransactionStatus.Pending;
@@ -136,13 +143,13 @@ public class BankService : IBankService
         return MapTransaction(tx);
     }
 
-    private static BankAccountDto MapAccount(BankAccount a) => new(
+    private static BankAccountDto MapAccount(BankAccount a, int pendingCount = 0) => new(
         a.Id, a.Name, a.BankName, a.AccountNumber,
         a.LinkedAccountId,
         a.LinkedAccount?.Code ?? "",
         a.LinkedAccount?.Name ?? "",
         a.IsActive,
-        a.Transactions.Count(t => t.Status == BankTransactionStatus.Pending));
+        pendingCount);
 
     private static BankTransactionDto MapTransaction(BankTransaction t) => new(
         t.Id, t.BankAccountId,

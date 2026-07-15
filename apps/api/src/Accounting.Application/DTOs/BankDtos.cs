@@ -39,12 +39,12 @@ public record ImportBankTransactionDto(
 public record MatchTransactionDto(Guid JournalEntryId);
 
 public record BankReconciliationDto(
-    BankAccountDto             BankAccount,
-    List<BankTransactionDto>   UnmatchedTransactions,
-    List<UnmatchedJournalDto>  UnmatchedJournalEntries,
-    decimal                    BankBalance,
-    decimal                    BookBalance,
-    decimal                    Difference);
+    BankAccountDto                  BankAccount,
+    PagedResult<BankTransactionDto> UnmatchedTransactions,
+    List<UnmatchedJournalDto>       UnmatchedJournalEntries,
+    decimal                         BankBalance,
+    decimal                         BookBalance,
+    decimal                         Difference);
 
 public record UnmatchedJournalDto(
     Guid    JournalEntryId,

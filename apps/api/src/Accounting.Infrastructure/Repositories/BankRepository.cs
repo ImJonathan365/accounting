@@ -14,15 +14,20 @@ public class BankRepository : IBankRepository
     public Task<List<BankAccount>> GetAccountsAsync(Guid orgId, CancellationToken ct = default) =>
         _db.BankAccounts.AsNoTracking()
             .Include(a => a.LinkedAccount)
-            .Include(a => a.Transactions)
             .Where(a => a.OrganizationId == orgId)
             .OrderBy(a => a.Name)
             .ToListAsync(ct);
 
+    public async Task<Dictionary<Guid, int>> GetPendingCountsAsync(Guid orgId, CancellationToken ct = default) =>
+        await _db.BankTransactions
+            .Where(t => t.BankAccount.OrganizationId == orgId && t.Status == BankTransactionStatus.Pending)
+            .GroupBy(t => t.BankAccountId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
     public Task<BankAccount?> GetAccountAsync(Guid orgId, Guid id, CancellationToken ct = default) =>
         _db.BankAccounts
             .Include(a => a.LinkedAccount)
-            .Include(a => a.Transactions)
             .FirstOrDefaultAsync(a => a.OrganizationId == orgId && a.Id == id, ct);
 
     public async Task AddAccountAsync(BankAccount account, CancellationToken ct = default) =>
@@ -34,8 +39,32 @@ public class BankRepository : IBankRepository
             .OrderByDescending(t => t.Date)
             .ToListAsync(ct);
 
-    public Task<BankTransaction?> GetTransactionAsync(Guid id, CancellationToken ct = default) =>
-        _db.BankTransactions.FirstOrDefaultAsync(t => t.Id == id, ct);
+    public async Task<(List<BankTransaction> Items, int Total)> GetPendingTransactionsPagedAsync(
+        Guid bankAccountId, int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = _db.BankTransactions.AsNoTracking()
+            .Where(t => t.BankAccountId == bankAccountId && t.Status == BankTransactionStatus.Pending)
+            .OrderByDescending(t => t.Date);
+        var total = await q.CountAsync(ct);
+        var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return (items, total);
+    }
+
+    public Task<decimal> GetBankBalanceAsync(Guid bankAccountId, CancellationToken ct = default) =>
+        _db.BankTransactions.AsNoTracking()
+            .Where(t => t.BankAccountId == bankAccountId && t.Status != BankTransactionStatus.Excluded)
+            .SumAsync(t => t.Type == BankTransactionType.Credit ? t.Amount : -t.Amount, ct);
+
+    public Task<decimal> GetGLBalanceAsync(Guid orgId, Guid linkedAccountId, CancellationToken ct = default) =>
+        _db.JournalLines.AsNoTracking()
+            .Where(l => l.JournalEntry.OrganizationId == orgId
+                     && l.AccountId == linkedAccountId
+                     && l.JournalEntry.Status == JournalStatus.Posted)
+            .SumAsync(l => l.Debit - l.Credit, ct);
+
+    public Task<BankTransaction?> GetTransactionAsync(Guid orgId, Guid id, CancellationToken ct = default) =>
+        _db.BankTransactions.FirstOrDefaultAsync(
+            t => t.Id == id && t.BankAccount.OrganizationId == orgId, ct);
 
     public async Task AddTransactionAsync(BankTransaction tx, CancellationToken ct = default) =>
         await _db.BankTransactions.AddAsync(tx, ct);
