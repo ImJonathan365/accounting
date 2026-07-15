@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Accounting.Api.Filters;
 using Accounting.Api.Helpers;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
+using Accounting.Domain.Entities;
 using Accounting.Domain.Enums;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -16,20 +18,34 @@ namespace Accounting.Api.Controllers;
 public class ContactsController : ControllerBase
 {
     private readonly IContactService                _service;
+    private readonly IAuditService                  _audit;
     private readonly IValidator<CreateContactDto>   _createValidator;
     private readonly IValidator<UpdateContactDto>   _updateValidator;
 
-    public ContactsController(IContactService service, IValidator<CreateContactDto> createValidator, IValidator<UpdateContactDto> updateValidator)
+    public ContactsController(
+        IContactService service,
+        IAuditService audit,
+        IValidator<CreateContactDto> createValidator,
+        IValidator<UpdateContactDto> updateValidator)
     {
         _service         = service;
+        _audit           = audit;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
 
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     [HttpGet]
-    public async Task<ActionResult<List<ContactDto>>> GetAll(
-        Guid orgId, [FromQuery] ContactType? type, CancellationToken ct) =>
-        Ok(await _service.GetAllAsync(orgId, type, ct));
+    public async Task<ActionResult<PagedResult<ContactDto>>> GetAll(
+        Guid orgId,
+        [FromQuery] ContactType? type,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default) =>
+        Ok(await _service.GetPagedAsync(orgId, type, search, page, pageSize, ct));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ContactDto>> GetById(Guid orgId, Guid id, CancellationToken ct) =>
@@ -41,6 +57,9 @@ public class ContactsController : ControllerBase
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         await _createValidator.ValidateAndThrowAsync(dto, ct);
         var result = await _service.CreateAsync(orgId, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.ContactCreated, "Contact", result.Id,
+            $"Creó el contacto \"{result.Name}\"", ct);
         return Ok(result);
     }
 
@@ -49,6 +68,10 @@ public class ContactsController : ControllerBase
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         await _updateValidator.ValidateAndThrowAsync(dto, ct);
-        return Ok(await _service.UpdateAsync(orgId, id, dto, ct));
+        var result = await _service.UpdateAsync(orgId, id, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.ContactUpdated, "Contact", id,
+            $"Editó el contacto \"{result.Name}\"", ct);
+        return Ok(result);
     }
 }

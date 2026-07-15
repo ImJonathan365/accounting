@@ -1,6 +1,9 @@
+using System.Security.Claims;
+using Accounting.Api.Filters;
 using Accounting.Api.Helpers;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
+using Accounting.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,30 +11,31 @@ namespace Accounting.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[ServiceFilter(typeof(OrgMembershipFilter))]
 [Route("api/organizations/{orgId:guid}/opening-balances")]
 public class OpeningBalancesController : ControllerBase
 {
     private readonly IOpeningBalanceService _service;
-    public OpeningBalancesController(IOpeningBalanceService service) => _service = service;
+    private readonly IAuditService          _audit;
+
+    public OpeningBalancesController(IOpeningBalanceService service, IAuditService audit)
+    {
+        _service = service;
+        _audit   = audit;
+    }
+
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpPost]
     public async Task<ActionResult<OpeningBalanceResultDto>> Set(
         Guid orgId, [FromBody] SetOpeningBalancesRequest dto, CancellationToken ct)
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
-
-        try
-        {
-            var result = await _service.SetAsync(orgId, dto, ct);
-            return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { title = ex.Message });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { title = ex.Message });
-        }
+        var result = await _service.SetAsync(orgId, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.OpeningBalancesSet, "OpeningBalance", result.JournalEntryId,
+            $"Estableció saldos iniciales — débito {result.TotalDebit:F2}, crédito {result.TotalCredit:F2}", ct);
+        return Ok(result);
     }
 }
