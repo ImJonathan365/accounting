@@ -7,7 +7,7 @@ namespace Accounting.Application.Services;
 
 public interface IInvoiceService
 {
-    Task<List<InvoiceDto>>         GetAllAsync(Guid orgId, InvoiceType? type = null, CancellationToken ct = default);
+    Task<PagedResult<InvoiceDto>>  GetAllAsync(Guid orgId, InvoiceType? type, InvoiceStatus? status, string? search, DateOnly? from, DateOnly? to, int page, int pageSize, CancellationToken ct = default);
     Task<InvoiceDto>               GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task<List<OverdueInvoiceDto>>  GetOverdueAsync(Guid orgId, CancellationToken ct = default);
     Task<InvoiceDto>               CreateAsync(Guid orgId, CreateInvoiceDto dto, CancellationToken ct = default);
@@ -18,25 +18,39 @@ public interface IInvoiceService
 
 public class InvoiceService : IInvoiceService
 {
-    private readonly IInvoiceRepository  _repo;
-    private readonly IAccountRepository  _accounts;
-    private readonly IJournalRepository  _journal;
-    private readonly ITaxRateRepository  _taxRates;
-    private readonly IJournalService     _journalSvc;
+    private readonly IInvoiceRepository          _repo;
+    private readonly IContactRepository          _contacts;
+    private readonly IAccountRepository          _accounts;
+    private readonly IJournalRepository          _journal;
+    private readonly ITaxRateRepository          _taxRates;
+    private readonly IJournalService             _journalSvc;
+    private readonly IAccountingPeriodRepository _periods;
 
-    public InvoiceService(IInvoiceRepository repo, IAccountRepository accounts, IJournalRepository journal, ITaxRateRepository taxRates, IJournalService journalSvc)
+    public InvoiceService(
+        IInvoiceRepository          repo,
+        IContactRepository          contacts,
+        IAccountRepository          accounts,
+        IJournalRepository          journal,
+        ITaxRateRepository          taxRates,
+        IJournalService             journalSvc,
+        IAccountingPeriodRepository periods)
     {
         _repo       = repo;
+        _contacts   = contacts;
         _accounts   = accounts;
         _journal    = journal;
         _taxRates   = taxRates;
         _journalSvc = journalSvc;
+        _periods    = periods;
     }
 
-    public async Task<List<InvoiceDto>> GetAllAsync(Guid orgId, InvoiceType? type = null, CancellationToken ct = default)
+    public async Task<PagedResult<InvoiceDto>> GetAllAsync(
+        Guid orgId, InvoiceType? type, InvoiceStatus? status, string? search,
+        DateOnly? from, DateOnly? to, int page, int pageSize, CancellationToken ct = default)
     {
-        var list = await _repo.GetByOrganizationAsync(orgId, type, ct);
-        return list.Select(Map).ToList();
+        var (items, total) = await _repo.GetPagedAsync(orgId, type, status, search, from, to, page, pageSize, ct);
+        var totalPages = (int)Math.Ceiling((double)total / pageSize);
+        return new PagedResult<InvoiceDto>(items.Select(Map).ToList(), total, page, pageSize, totalPages);
     }
 
     public async Task<InvoiceDto> GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default)
@@ -50,11 +64,10 @@ public class InvoiceService : IInvoiceService
     {
         var list = await _repo.GetOverdueAsync(orgId, ct);
         return list.Select(i => new OverdueInvoiceDto(
-            i.Id, i.Number, i.Contact?.Name ?? "",
+            i.Id, i.Number, i.ContactName,
             i.DueDate.ToString("yyyy-MM-dd"),
             i.Type.ToString(),
-            i.Lines.Sum(l => l.Quantity * l.UnitPrice * (1 + (l.TaxRate?.Rate ?? 0) / 100))
-            - i.Payments.Sum(p => p.Amount)
+            i.Balance
         )).ToList();
     }
 
@@ -62,6 +75,22 @@ public class InvoiceService : IInvoiceService
     {
         if (!dto.Lines.Any())
             throw new ArgumentException("La factura debe tener al menos una línea.");
+
+        if (await _repo.NumberExistsAsync(orgId, dto.Number.Trim(), null, ct))
+            throw new InvalidOperationException($"Ya existe una factura con el número '{dto.Number.Trim()}' en esta organización.");
+
+        var contact = await _contacts.GetByIdAsync(orgId, dto.ContactId, ct);
+        if (contact is null)
+            throw new ArgumentException("El contacto no pertenece a esta organización.");
+
+        var compatible = dto.Type == InvoiceType.Receivable
+            ? contact.Type is ContactType.Customer or ContactType.Both
+            : contact.Type is ContactType.Vendor or ContactType.Both;
+        if (!compatible)
+        {
+            var expected = dto.Type == InvoiceType.Receivable ? "cliente" : "proveedor";
+            throw new ArgumentException($"El contacto debe ser de tipo {expected} para este tipo de factura.");
+        }
 
         var accountIds = dto.Lines.Select(l => l.AccountId).Append(dto.ArApAccountId).Distinct().ToList();
         var accounts   = await _accounts.GetByIdsAsync(orgId, accountIds, ct);
@@ -103,11 +132,28 @@ public class InvoiceService : IInvoiceService
         if (inv.Status != InvoiceStatus.Draft)
             throw new InvalidOperationException("Solo se pueden emitir facturas en estado borrador.");
 
+        await AssertPeriodOpenAsync(orgId, inv.Date, ct);
+
         // Load tax rate data separately (AsNoTracking) to avoid EF change-tracker side-effects
         var taxRateIds = inv.Lines.Where(l => l.TaxRateId.HasValue).Select(l => l.TaxRateId!.Value).ToList();
         var taxRateMap = taxRateIds.Count > 0
             ? (await _taxRates.GetByIdsAsync(taxRateIds, orgId, ct)).ToDictionary(t => t.Id)
             : new Dictionary<Guid, TaxRate>();
+
+        // M-9: all TaxRateIds must belong to the org
+        var missingRates = taxRateIds.Except(taxRateMap.Keys).ToList();
+        if (missingRates.Count > 0)
+            throw new InvalidOperationException("Una o más tasas de impuesto en las líneas no pertenecen a esta organización.");
+
+        // M-8: re-validate accounts at issuance time (they may have changed since draft creation)
+        var allAccountIds = inv.Lines.Select(l => l.AccountId).Append(inv.ArApAccountId).Distinct().ToList();
+        var allAccounts   = await _accounts.GetByIdsAsync(orgId, allAccountIds, ct);
+        var inactive      = allAccounts.Where(a => !a.IsActive).Select(a => a.Code).ToList();
+        if (inactive.Count > 0)
+            throw new InvalidOperationException($"Las siguientes cuentas están inactivas: {string.Join(", ", inactive)}.");
+        var nonPostable = allAccounts.Where(a => !a.IsPostable).Select(a => a.Code).ToList();
+        if (nonPostable.Count > 0)
+            throw new InvalidOperationException($"Las siguientes cuentas no admiten movimientos: {string.Join(", ", nonPostable)}.");
 
         var subTotal = inv.Lines.Sum(l => l.Quantity * l.UnitPrice);
         var taxTotal = inv.Lines.Sum(l =>
@@ -173,6 +219,12 @@ public class InvoiceService : IInvoiceService
         if (inv.Status is InvoiceStatus.Draft or InvoiceStatus.Void)
             throw new InvalidOperationException("La factura debe estar emitida para registrar pagos.");
 
+        var paymentDate = DateOnly.Parse(dto.Date);
+        await AssertPeriodOpenAsync(orgId, paymentDate, ct);
+
+        if (await _accounts.GetByIdAsync(dto.PaymentAccountId, orgId, ct) is null)
+            throw new ArgumentException("La cuenta de pago no pertenece a esta organización.");
+
         // Load tax rates separately (AsNoTracking) to compute the correct tax-inclusive total
         var taxRateIds = inv.Lines.Where(l => l.TaxRateId.HasValue).Select(l => l.TaxRateId!.Value).ToList();
         var taxRateMap = taxRateIds.Count > 0
@@ -206,7 +258,7 @@ public class InvoiceService : IInvoiceService
         var entry = new JournalEntry
         {
             OrganizationId = orgId,
-            Date           = DateOnly.Parse(dto.Date),
+            Date           = paymentDate,
             Reference      = inv.Number,
             Description    = $"Pago factura {inv.Number} — {inv.Contact.Name}",
             Status         = JournalStatus.Posted,
@@ -218,7 +270,7 @@ public class InvoiceService : IInvoiceService
         var payment = new InvoicePayment
         {
             InvoiceId        = inv.Id,
-            Date             = DateOnly.Parse(dto.Date),
+            Date             = paymentDate,
             Amount           = dto.Amount,
             PaymentAccountId = dto.PaymentAccountId,
             JournalEntryId   = entry.Id,
@@ -262,6 +314,13 @@ public class InvoiceService : IInvoiceService
         }
 
         return await GetByIdAsync(orgId, id, ct);
+    }
+
+    private async Task AssertPeriodOpenAsync(Guid orgId, DateOnly date, CancellationToken ct)
+    {
+        if (await _periods.IsClosedAsync(orgId, date.Year, date.Month, ct))
+            throw new InvalidOperationException(
+                $"El período {date:MMMM yyyy} está cerrado. No se pueden registrar movimientos en períodos cerrados.");
     }
 
     private static string StatusLabel(InvoiceStatus s) => s switch

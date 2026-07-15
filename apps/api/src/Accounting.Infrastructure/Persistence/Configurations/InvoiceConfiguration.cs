@@ -14,6 +14,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.Property(x => x.Type).HasConversion<int>();
         b.Property(x => x.Status).HasConversion<int>();
         b.Property(x => x.Notes).HasMaxLength(1000);
+        b.HasIndex(x => new { x.OrganizationId, x.Number }).IsUnique();
 
         b.HasOne(x => x.Contact)
             .WithMany(c => c.Invoices)

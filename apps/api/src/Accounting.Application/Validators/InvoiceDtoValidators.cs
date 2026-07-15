@@ -13,6 +13,11 @@ public class CreateInvoiceDtoValidator : AbstractValidator<CreateInvoiceDto>
         RuleFor(x => x.Date).NotEmpty().Matches(@"^\d{4}-\d{2}-\d{2}$");
         RuleFor(x => x.DueDate).NotEmpty().Matches(@"^\d{4}-\d{2}-\d{2}$");
         RuleFor(x => x.ArApAccountId).NotEmpty();
+        RuleFor(x => x).Must(x =>
+            !DateOnly.TryParse(x.Date, out var d) ||
+            !DateOnly.TryParse(x.DueDate, out var due) ||
+            due >= d)
+            .WithMessage("La fecha de vencimiento no puede ser anterior a la fecha de emisión.");
         RuleFor(x => x.Lines).NotEmpty().WithMessage("La factura debe tener al menos una línea.");
         RuleForEach(x => x.Lines).ChildRules(l =>
         {
