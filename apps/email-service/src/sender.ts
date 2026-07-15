@@ -9,14 +9,15 @@ import { VerifyEmailEmail } from './templates/verify-email.js';
 import { ResetPasswordEmail } from './templates/reset-password.js';
 import { PasswordChangedEmail } from './templates/password-changed.js';
 import { InvitationAcceptedEmail } from './templates/invitation-accepted.js';
+import { InvitationWelcomeEmail } from './templates/invitation-welcome.js';
+import { InvitationDeclinedEmail } from './templates/invitation-declined.js';
+import { InvitationDeclinedNotifyEmail } from './templates/invitation-declined-notify.js';
 
+// Skip auth entirely when no credentials (e.g. Mailpit for local dev)
 const transporter = nodemailer.createTransport({
   host: config.smtpHost,
   port: config.smtpPort,
-  auth: {
-    user: config.smtpUser,
-    pass: config.smtpPass,
-  },
+  ...(config.smtpPass ? { auth: { user: config.smtpUser, pass: config.smtpPass } } : {}),
 });
 
 export async function sendEmail(req: EmailRequest): Promise<void> {
@@ -45,17 +46,24 @@ export async function sendEmail(req: EmailRequest): Promise<void> {
       element = React.createElement(PasswordChangedEmail, req.payload);
       break;
     case 'invitation-accepted':
-      subject = `¡Bienvenido a ${req.payload.orgName}!`;
+      subject = `${req.payload.acceptorName} aceptó tu invitación a ${req.payload.orgName}`;
       element = React.createElement(InvitationAcceptedEmail, req.payload);
+      break;
+    case 'invitation-welcome':
+      subject = `¡Bienvenido a ${req.payload.orgName}!`;
+      element = React.createElement(InvitationWelcomeEmail, req.payload);
+      break;
+    case 'invitation-declined':
+      subject = `Rechazaste la invitación a ${req.payload.orgName}`;
+      element = React.createElement(InvitationDeclinedEmail, req.payload);
+      break;
+    case 'invitation-declined-notify':
+      subject = `${req.payload.declinerName} rechazó tu invitación a ${req.payload.orgName}`;
+      element = React.createElement(InvitationDeclinedNotifyEmail, req.payload);
       break;
   }
 
   const html = await render(element);
-
-  if (!config.smtpPass) {
-    console.log(`[email-service] DRY RUN — would send "${subject}" to ${req.to}`);
-    return;
-  }
 
   await transporter.sendMail({
     from:    config.emailFrom,

@@ -19,28 +19,25 @@ const ROLE_LABELS: Record<string, string> = {
   member: 'Miembro',
 };
 
-export function InvitationAcceptedEmail({ firstName, orgName, role, appUrl }: InvitationAcceptedPayload) {
+export function InvitationAcceptedEmail({ firstName, acceptorName, orgName, role, appUrl }: InvitationAcceptedPayload) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
     <Html lang="es">
       <Head />
-      <Preview>Ahora eres parte de {orgName}</Preview>
+      <Preview>{acceptorName} aceptó tu invitación a {orgName}</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={iconSection}>
             <div style={iconCircle}>✓</div>
           </Section>
-          <Heading style={h1}>¡Bienvenido a {orgName}!</Heading>
+          <Heading style={h1}>Invitación aceptada</Heading>
           <Text style={text}>
-            Hola {firstName}, ya eres parte del equipo de <strong>{orgName}</strong> como{' '}
-            <strong>{roleLabel}</strong>.
-          </Text>
-          <Text style={text}>
-            Ingresa a la aplicación para comenzar a colaborar.
+            Hola {firstName}, <strong>{acceptorName}</strong> aceptó tu invitación y ahora es parte de{' '}
+            <strong>{orgName}</strong> como <strong>{roleLabel}</strong>.
           </Text>
           <Section style={btnSection}>
             <Button style={button} href={appUrl}>
-              Ir a la aplicación
+              Ver el equipo
             </Button>
           </Section>
           <Hr style={hr} />
