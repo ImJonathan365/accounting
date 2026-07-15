@@ -24,11 +24,23 @@ public class RecurringEntryRepository : IRecurringEntryRepository
             .FirstOrDefaultAsync(ct);
 
     public Task<List<RecurringJournalEntry>> GetPendingAsync(Guid orgId, DateOnly asOf, CancellationToken ct = default) =>
-        _db.RecurringJournalEntries
+        _db.RecurringJournalEntries.AsNoTracking()
             .Where(r => r.OrganizationId == orgId && r.IsActive && r.NextDate <= asOf
                      && (r.EndDate == null || r.NextDate <= r.EndDate))
             .Include(r => r.Lines).ThenInclude(l => l.Account)
             .ToListAsync(ct);
+
+    public async Task<bool> TryAdvanceAsync(
+        Guid id, DateOnly expectedDate, DateOnly newDate, bool deactivate,
+        CancellationToken ct = default)
+    {
+        var affected = await _db.RecurringJournalEntries
+            .Where(r => r.Id == id && r.NextDate == expectedDate)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.NextDate, newDate)
+                .SetProperty(r => r.IsActive, !deactivate), ct);
+        return affected > 0;
+    }
 
     public async Task AddAsync(RecurringJournalEntry entry, CancellationToken ct = default) =>
         await _db.RecurringJournalEntries.AddAsync(entry, ct);

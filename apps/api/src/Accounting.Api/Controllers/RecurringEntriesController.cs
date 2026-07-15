@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Accounting.Api.Filters;
 using Accounting.Api.Helpers;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
+using Accounting.Domain.Entities;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,18 +17,24 @@ namespace Accounting.Api.Controllers;
 public class RecurringEntriesController : ControllerBase
 {
     private readonly IRecurringEntryService              _service;
+    private readonly IAuditService                       _audit;
     private readonly IValidator<CreateRecurringEntryDto> _createValidator;
     private readonly IValidator<UpdateRecurringEntryDto> _updateValidator;
 
     public RecurringEntriesController(
         IRecurringEntryService service,
+        IAuditService audit,
         IValidator<CreateRecurringEntryDto> createValidator,
         IValidator<UpdateRecurringEntryDto> updateValidator)
     {
         _service         = service;
+        _audit           = audit;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
+
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
     public async Task<ActionResult<List<RecurringEntryDto>>> GetAll(Guid orgId, CancellationToken ct) =>
@@ -75,6 +83,10 @@ public class RecurringEntriesController : ControllerBase
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin"))
             return Forbid();
 
-        return Ok(await _service.GeneratePendingAsync(orgId, ct));
+        var result = await _service.GeneratePendingAsync(orgId, ct);
+        if (result.Generated > 0)
+            await _audit.LogAsync(orgId, CurrentUserId, AuditActions.RecurringGenerated, "RecurringEntry", Guid.Empty,
+                $"Generó {result.Generated} asiento(s) recurrente(s)", ct);
+        return Ok(result);
     }
 }

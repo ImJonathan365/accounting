@@ -42,6 +42,9 @@ public class AccountService : IAccountService
         if (await _repo.CodeExistsAsync(orgId, dto.Code, ct))
             throw new InvalidOperationException($"El código '{dto.Code}' ya existe en esta organización.");
 
+        if (dto.ParentId.HasValue && await _repo.GetByIdAsync(dto.ParentId.Value, orgId, ct) is null)
+            throw new ArgumentException("La cuenta padre no existe en esta organización.");
+
         var account = new Account
         {
             OrganizationId  = orgId,

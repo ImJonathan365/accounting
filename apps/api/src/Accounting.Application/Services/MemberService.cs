@@ -1,8 +1,8 @@
-using System.Security.Cryptography;
 using Accounting.Application.DTOs;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Domain.Entities;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace Accounting.Application.Services;
 
@@ -25,6 +25,7 @@ public class MemberService : IMemberService
     private readonly IEmailNotificationService       _email;
     private readonly IValidator<InviteMemberDto>     _inviteValidator;
     private readonly IValidator<UpdateMemberRoleDto> _roleValidator;
+    private readonly ILogger<MemberService>          _logger;
 
     private const int InvitationExpiryDays = 7;
 
@@ -34,7 +35,8 @@ public class MemberService : IMemberService
         IMemberInvitationRepository     invitations,
         IEmailNotificationService       email,
         IValidator<InviteMemberDto>     inviteValidator,
-        IValidator<UpdateMemberRoleDto> roleValidator)
+        IValidator<UpdateMemberRoleDto> roleValidator,
+        ILogger<MemberService>          logger)
     {
         _orgs            = orgs;
         _users           = users;
@@ -42,6 +44,7 @@ public class MemberService : IMemberService
         _email           = email;
         _inviteValidator = inviteValidator;
         _roleValidator   = roleValidator;
+        _logger          = logger;
     }
 
     public async Task<List<MemberDto>> ListAsync(Guid orgId, CancellationToken ct = default)
@@ -71,7 +74,7 @@ public class MemberService : IMemberService
         if (existing is not null)
             existing.DeclinedAtUtc = DateTime.UtcNow;
 
-        var raw  = GenerateRaw();
+        var raw  = TokenHelper.GenerateUrlSafeRaw();
         var hash = Hash(raw);
         var org      = await _orgs.GetByIdAsync(orgId, ct);
         var requester = await _users.GetByIdAsync(requesterId, ct);
@@ -91,7 +94,7 @@ public class MemberService : IMemberService
         var orgName     = org?.Name ?? "";
         var inviterName = requester is not null ? $"{requester.FirstName} {requester.LastName}" : "";
 
-        _ = _email.SendInviteAsync(target.Email, target.FirstName, orgName, inviterName, dto.Role, raw);
+        FireAndForget(_email.SendInviteAsync(target.Email, target.FirstName, orgName, inviterName, dto.Role, raw));
     }
 
     public async Task<InvitationInfoDto> GetInvitationInfoAsync(string rawToken, CancellationToken ct = default)
@@ -156,8 +159,20 @@ public class MemberService : IMemberService
         invitation.AcceptedAtUtc = DateTime.UtcNow;
         await _invitations.SaveChangesAsync(ct);
 
-        var org = await _orgs.GetByIdAsync(invitation.OrganizationId, ct);
-        _ = _email.SendInvitationAcceptedAsync(user.Email, user.FirstName, org?.Name ?? "", invitation.Role);
+        var org          = await _orgs.GetByIdAsync(invitation.OrganizationId, ct);
+        var inviter      = await _users.GetByIdAsync(invitation.InvitedByUserId, ct);
+        var acceptorName = $"{user.FirstName} {user.LastName}";
+
+        // B: welcome to the org
+        FireAndForget(_email.SendInvitationWelcomeAsync(user.Email, user.FirstName, org?.Name ?? "", invitation.Role));
+
+        // A: notification that B accepted
+        FireAndForget(_email.SendInvitationAcceptedAsync(
+            inviter?.Email     ?? "",
+            inviter?.FirstName ?? "",
+            acceptorName,
+            org?.Name ?? "",
+            invitation.Role));
 
         membership.User = user;
         return Map(membership);
@@ -178,6 +193,21 @@ public class MemberService : IMemberService
 
         invitation.DeclinedAtUtc = DateTime.UtcNow;
         await _invitations.SaveChangesAsync(ct);
+
+        var decliner = await _users.GetByEmailAsync(invitation.InvitedEmail, ct);
+        var inviter  = await _users.GetByIdAsync(invitation.InvitedByUserId, ct);
+        var org      = await _orgs.GetByIdAsync(invitation.OrganizationId, ct);
+
+        // B: confirmation they declined
+        if (decliner is not null)
+            FireAndForget(_email.SendInvitationDeclinedAsync(decliner.Email, decliner.FirstName, org?.Name ?? ""));
+
+        // A: notification that B declined
+        if (inviter is not null)
+        {
+            var declinerName = decliner is not null ? $"{decliner.FirstName} {decliner.LastName}" : invitation.InvitedEmail;
+            FireAndForget(_email.SendInvitationDeclinedNotifyAsync(inviter.Email, inviter.FirstName, declinerName, org?.Name ?? ""));
+        }
     }
 
     public async Task<MemberDto> UpdateRoleAsync(
@@ -198,8 +228,9 @@ public class MemberService : IMemberService
         membership.Role = dto.Role;
         await _orgs.SaveChangesAsync(ct);
 
-        var user = await _users.GetByIdAsync(targetUserId, ct)!;
-        membership.User = user!;
+        var user = await _users.GetByIdAsync(targetUserId, ct)
+            ?? throw new KeyNotFoundException("El usuario del miembro no fue encontrado.");
+        membership.User = user;
         return Map(membership);
     }
 
@@ -233,22 +264,15 @@ public class MemberService : IMemberService
     private static bool CanRemove(string? requesterRole, string targetRole) =>
         requesterRole == "owner" || (requesterRole == "admin" && targetRole == "member");
 
-    private static string GenerateRaw()
-    {
-        var bytes = new byte[48];
-        RandomNumberGenerator.Fill(bytes);
-        // URL-safe base64: +→- /→_ no padding — safe in URL paths without encoding
-        return Convert.ToBase64String(bytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('=');
-    }
-
     private static string Hash(string raw)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(raw);
-        return Convert.ToBase64String(SHA256.HashData(bytes));
+        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(bytes));
     }
+
+    private void FireAndForget(Task task) =>
+        task.ContinueWith(t => _logger.LogError(t.Exception, "Fire-and-forget email failed"),
+            TaskContinuationOptions.OnlyOnFaulted);
 
     private static MemberDto Map(Membership m) =>
         new(m.UserId, m.User.Email, m.User.FirstName, m.User.LastName,

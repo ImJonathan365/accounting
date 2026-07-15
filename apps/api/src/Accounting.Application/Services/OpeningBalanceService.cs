@@ -12,13 +12,20 @@ public interface IOpeningBalanceService
 
 public class OpeningBalanceService : IOpeningBalanceService
 {
-    private readonly IJournalRepository  _journal;
-    private readonly IAccountRepository  _accounts;
+    private const string OpeningBalanceRef = "SALDOS-INICIALES";
 
-    public OpeningBalanceService(IJournalRepository journal, IAccountRepository accounts)
+    private readonly IJournalRepository          _journal;
+    private readonly IAccountRepository          _accounts;
+    private readonly IAccountingPeriodRepository _periods;
+
+    public OpeningBalanceService(
+        IJournalRepository journal,
+        IAccountRepository accounts,
+        IAccountingPeriodRepository periods)
     {
         _journal  = journal;
         _accounts = accounts;
+        _periods  = periods;
     }
 
     public async Task<OpeningBalanceResultDto> SetAsync(Guid orgId, SetOpeningBalancesRequest dto, CancellationToken ct = default)
@@ -36,8 +43,16 @@ public class OpeningBalanceService : IOpeningBalanceService
             throw new InvalidOperationException(
                 $"El asiento no balancea: débitos {totalDebit:N2} ≠ créditos {totalCredit:N2}.");
 
+        if (await _periods.IsClosedAsync(orgId, date.Year, date.Month, ct))
+            throw new InvalidOperationException(
+                $"El período {date:MMMM yyyy} está cerrado. No se pueden registrar saldos iniciales en períodos cerrados.");
+
+        if (await _journal.ExistsWithReferenceAsync(orgId, OpeningBalanceRef, ct))
+            throw new InvalidOperationException(
+                "Ya existen saldos iniciales para esta organización. Anule el asiento existente antes de registrar nuevos.");
+
         // Validate all accounts belong to the org
-        var accountIds = nonZeroLines.Select(l => l.AccountId).ToHashSet();
+        var accountIds  = nonZeroLines.Select(l => l.AccountId).ToHashSet();
         var orgAccounts = await _accounts.GetByOrganizationAsync(orgId, ct);
         var validIds    = orgAccounts.Select(a => a.Id).ToHashSet();
         var invalid     = accountIds.Except(validIds).ToList();
@@ -49,6 +64,7 @@ public class OpeningBalanceService : IOpeningBalanceService
             OrganizationId = orgId,
             Date           = date,
             Description    = dto.Description?.Trim() is { Length: > 0 } d ? d : "Saldos iniciales",
+            Reference      = OpeningBalanceRef,
             Status         = JournalStatus.Posted,
             Lines          = nonZeroLines.Select(l => new JournalLine
             {

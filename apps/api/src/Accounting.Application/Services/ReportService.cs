@@ -185,25 +185,28 @@ public class ReportService : IReportService
         if (page    < 1) page     = 1;
         if (pageSize < 1) pageSize = 50;
 
-        var allAccounts = await _accounts.GetByOrganizationAsync(orgId, ct);
-        var account = allAccounts.FirstOrDefault(a => a.Id == accountId)
+        var account = await _accounts.GetByIdAsync(accountId, orgId, ct)
             ?? throw new KeyNotFoundException($"Cuenta {accountId} no encontrada.");
 
-        var openingBalance = await _reports.GetAccountOpeningBalanceAsync(orgId, accountId, from, ct);
+        // Credit-normal accounts (Liability, Income, Equity) show positive balance when Credit > Debit
+        var sign = account.Type is AccountType.Liability or AccountType.Income or AccountType.Equity
+            ? -1m : 1m;
+
+        var openingBalance = sign * await _reports.GetAccountOpeningBalanceAsync(orgId, accountId, from, ct);
 
         var skip = (page - 1) * pageSize;
         var (rawLines, total) = await _reports.GetLedgerLinesPagedAsync(orgId, accountId, from, to, page, pageSize, ct);
 
         // Balance accumulated by lines BEFORE this page (within the date range)
         var balanceBeforePage = skip > 0
-            ? await _reports.GetLedgerBalanceInRangeAsync(orgId, accountId, from, to, skip, ct)
+            ? sign * await _reports.GetLedgerBalanceInRangeAsync(orgId, accountId, from, to, skip, ct)
             : 0m;
 
         var pageOpeningBalance = openingBalance + balanceBeforePage;
         var running = pageOpeningBalance;
         var lines = rawLines.Select(l =>
         {
-            running += l.Debit - l.Credit;
+            running += sign * (l.Debit - l.Credit);
             return new LedgerLineDto(l.EntryId, l.Date, l.Description, l.Reference, l.Debit, l.Credit, running);
         }).ToList();
 

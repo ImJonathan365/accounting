@@ -5,6 +5,7 @@ using Accounting.Domain.Entities;
 using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Accounting.Tests.Unit.Services;
@@ -27,7 +28,7 @@ public class MemberServiceTests
 
     public MemberServiceTests()
     {
-        _sut = new MemberService(_orgs, _users, _invitations, _email, _inviteV, _roleV);
+        _sut = new MemberService(_orgs, _users, _invitations, _email, _inviteV, _roleV, NullLogger<MemberService>.Instance);
 
         _inviteV.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());

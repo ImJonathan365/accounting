@@ -13,6 +13,8 @@ public class TaxRateConfiguration : IEntityTypeConfiguration<TaxRate>
         b.Property(x => x.Name).HasMaxLength(100).IsRequired();
         b.Property(x => x.Rate).HasPrecision(8, 4);
 
+        b.HasIndex(x => new { x.OrganizationId, x.Name }).IsUnique();
+
         b.HasOne(x => x.TaxAccount)
             .WithMany()
             .HasForeignKey(x => x.TaxAccountId)
@@ -29,6 +31,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.Property(x => x.Name).HasMaxLength(300).IsRequired();
         b.Property(x => x.Description).HasMaxLength(1000);
         b.Property(x => x.DefaultPrice).HasPrecision(18, 4);
+
+        b.HasIndex(x => new { x.OrganizationId, x.Name }).IsUnique();
 
         b.HasOne(x => x.Account)
             .WithMany()

@@ -3,9 +3,11 @@ using Accounting.Application.Interfaces.Repositories;
 using Accounting.Application.Services;
 using Accounting.Domain.Entities;
 using Accounting.Domain.Enums;
+using Accounting.Domain.Exceptions;
 using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Accounting.Tests.Unit.Services;
@@ -39,7 +41,8 @@ public class AuthServiceTests
             _users, _orgs, _externalLogins, _refreshTokens,
             _passwordResets, _emailVerifs,
             _tokens, _seeder, _settings, _emailSettings,
-            _email, _registerV, _loginV, _forgotV, _resetV, _verifyV);
+            _email, _registerV, _loginV, _forgotV, _resetV, _verifyV,
+            NullLogger<AuthService>.Instance);
 
         _registerV.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
@@ -86,7 +89,7 @@ public class AuthServiceTests
             .Returns(login);
 
         await _sut.Invoking(s => s.LoginAsync(new LoginDto("user@test.com", "wrong_password")))
-            .Should().ThrowAsync<UnauthorizedAccessException>()
+            .Should().ThrowAsync<AuthenticationException>()
             .WithMessage("*Credenciales inválidas*");
     }
 
@@ -97,7 +100,7 @@ public class AuthServiceTests
             .Returns((ExternalLogin?)null);
 
         await _sut.Invoking(s => s.LoginAsync(new LoginDto("ghost@test.com", "pass")))
-            .Should().ThrowAsync<UnauthorizedAccessException>()
+            .Should().ThrowAsync<AuthenticationException>()
             .WithMessage("*Credenciales inválidas*");
     }
 
@@ -111,7 +114,7 @@ public class AuthServiceTests
             .Returns(login);
 
         await _sut.Invoking(s => s.LoginAsync(new LoginDto("user@test.com", "correct_password")))
-            .Should().ThrowAsync<UnauthorizedAccessException>()
+            .Should().ThrowAsync<AuthenticationException>()
             .WithMessage("*desactivada*");
     }
 
@@ -176,7 +179,7 @@ public class AuthServiceTests
         var user = MakeUser(UserId, "user@test.com");
         var org  = new Organization { Id = OrgId, Name = "Segunda Org" };
 
-        _users.GetByIdAsync(UserId, Arg.Any<CancellationToken>()).Returns(user);
+        _users.GetForUpdateAsync(UserId, Arg.Any<CancellationToken>()).Returns(user);
         _orgs.GetMemberRoleAsync(OrgId, UserId, Arg.Any<CancellationToken>()).Returns("admin");
         _orgs.GetByIdAsync(OrgId, Arg.Any<CancellationToken>()).Returns(org);
 
@@ -190,7 +193,7 @@ public class AuthServiceTests
     public async Task SwitchOrgAsync_NotMember_ThrowsUnauthorized()
     {
         var user = MakeUser(UserId, "user@test.com");
-        _users.GetByIdAsync(UserId, Arg.Any<CancellationToken>()).Returns(user);
+        _users.GetForUpdateAsync(UserId, Arg.Any<CancellationToken>()).Returns(user);
         _orgs.GetMemberRoleAsync(OrgId, UserId, Arg.Any<CancellationToken>())
             .Returns((string?)null);
 
@@ -247,7 +250,7 @@ public class AuthServiceTests
         _refreshTokens.GetByHashAsync(storedHash, Arg.Any<CancellationToken>()).Returns(stored);
 
         await _sut.Invoking(s => s.RefreshAsync(rawToken))
-            .Should().ThrowAsync<UnauthorizedAccessException>()
+            .Should().ThrowAsync<AuthenticationException>()
             .WithMessage("*inválido o expirado*");
     }
 
@@ -268,7 +271,7 @@ public class AuthServiceTests
         _refreshTokens.GetByHashAsync(storedHash, Arg.Any<CancellationToken>()).Returns(stored);
 
         await _sut.Invoking(s => s.RefreshAsync(rawToken))
-            .Should().ThrowAsync<UnauthorizedAccessException>()
+            .Should().ThrowAsync<AuthenticationException>()
             .WithMessage("*inválido o expirado*");
     }
 
@@ -279,7 +282,7 @@ public class AuthServiceTests
             .Returns((RefreshToken?)null);
 
         await _sut.Invoking(s => s.RefreshAsync("nonexistent"))
-            .Should().ThrowAsync<UnauthorizedAccessException>();
+            .Should().ThrowAsync<AuthenticationException>();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

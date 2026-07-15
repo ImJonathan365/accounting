@@ -54,8 +54,9 @@ public class RecurringEntryService : IRecurringEntryService
         if (Math.Abs(totalDebit - totalCredit) > 0.001m)
             throw new ArgumentException("El total de débitos debe ser igual al total de créditos.");
 
-        var allAccountIds = await _accounts.GetByOrganizationAsync(orgId, ct);
-        var validIds      = allAccountIds.Where(a => a.IsPostable).Select(a => a.Id).ToHashSet();
+        var lineAccountIds = dto.Lines.Select(l => l.AccountId).Distinct();
+        var foundAccounts  = await _accounts.GetByIdsAsync(orgId, lineAccountIds, ct);
+        var validIds       = foundAccounts.Where(a => a.IsPostable).Select(a => a.Id).ToHashSet();
 
         var entry = new RecurringJournalEntry
         {
@@ -114,10 +115,14 @@ public class RecurringEntryService : IRecurringEntryService
     {
         var today   = DateOnly.FromDateTime(DateTime.Today);
         var pending = await _repo.GetPendingAsync(orgId, today, ct);
-        var ids     = new List<Guid>();
 
+        // Stage all entries before committing anything: if SaveChangesAsync fails, no template is advanced
+        var staged = new List<(RecurringJournalEntry Template, JournalEntry Entry, DateOnly NewDate, bool Deactivate)>();
         foreach (var template in pending)
         {
+            var newDate    = Advance(template.NextDate, template.Frequency);
+            var deactivate = template.EndDate.HasValue && newDate > template.EndDate.Value;
+
             var entry = new JournalEntry
             {
                 OrganizationId = orgId,
@@ -134,17 +139,20 @@ public class RecurringEntryService : IRecurringEntryService
                 }).ToList(),
             };
             await _journal.AddAsync(entry, ct);
-            ids.Add(entry.Id);
-
-            // Advance next date
-            template.NextDate = Advance(template.NextDate, template.Frequency);
-
-            // Deactivate if past end date
-            if (template.EndDate.HasValue && template.NextDate > template.EndDate.Value)
-                template.IsActive = false;
+            staged.Add((template, entry, newDate, deactivate));
         }
 
-        await _repo.SaveChangesAsync(ct);
+        // Persist entries first — entries are durable before any template is advanced
+        await _journal.SaveChangesAsync(ct);
+
+        // Advance templates after entries are safe; a lost optimistic race leaves a harmless draft
+        var ids = new List<Guid>();
+        foreach (var (template, entry, newDate, deactivate) in staged)
+        {
+            var advanced = await _repo.TryAdvanceAsync(template.Id, template.NextDate, newDate, deactivate, ct);
+            if (advanced) ids.Add(entry.Id);
+        }
+
         return new GeneratePendingResultDto(ids.Count, ids);
     }
 

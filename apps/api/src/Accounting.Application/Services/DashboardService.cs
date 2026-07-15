@@ -44,7 +44,7 @@ public class DashboardService : IDashboardService
         var orgSettings    = await _settings.GetAsync(orgId, ct);
         var allAccounts    = await _accounts.GetByOrganizationAsync(orgId, ct);
         var monthlyLines   = await _reports.GetMonthlyTrendsAsync(orgId, trendStart, today, ct);
-        var allInvoices    = await _invoices.GetByOrganizationAsync(orgId, ct: ct);
+        var activeInvoices = await _invoices.GetActiveForDashboardAsync(orgId, ct);
 
         var accountMap = allAccounts.ToDictionary(a => a.Id);
 
@@ -127,31 +127,22 @@ public class DashboardService : IDashboardService
 
         // ── Invoice KPIs ───────────────────────────────────────────────────────
 
-        static decimal InvBalance(Domain.Entities.Invoice i) =>
-            i.Lines.Sum(l => l.Quantity * l.UnitPrice * (1 + (l.TaxRate?.Rate ?? 0) / 100))
-            - i.Payments.Sum(p => p.Amount);
+        decimal pendingReceivable = activeInvoices
+            .Where(i => i.Type == InvoiceType.Receivable)
+            .Sum(i => i.Balance);
 
-        var activeUnpaid = allInvoices
-            .Where(i => i.Status == Domain.Enums.InvoiceStatus.Issued
-                     || i.Status == Domain.Enums.InvoiceStatus.PartiallyPaid)
-            .ToList();
+        decimal pendingPayable = activeInvoices
+            .Where(i => i.Type == InvoiceType.Payable)
+            .Sum(i => i.Balance);
 
-        decimal pendingReceivable = activeUnpaid
-            .Where(i => i.Type == Domain.Enums.InvoiceType.Receivable)
-            .Sum(InvBalance);
-
-        decimal pendingPayable = activeUnpaid
-            .Where(i => i.Type == Domain.Enums.InvoiceType.Payable)
-            .Sum(InvBalance);
-
-        var overdueList = activeUnpaid
+        var overdueList = activeInvoices
             .Where(i => i.DueDate < today)
             .OrderBy(i => i.DueDate)
             .Select(i => new OverdueInvoiceDto(
-                i.Id, i.Number, i.Contact?.Name ?? "",
+                i.Id, i.Number, i.ContactName,
                 i.DueDate.ToString("yyyy-MM-dd"),
                 i.Type.ToString(),
-                InvBalance(i)))
+                i.Balance))
             .ToList();
 
         // ── Build response ─────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ public interface IJournalRepository
 
     Task<List<JournalEntry>> GetRecentAsync(Guid orgId, int count, CancellationToken ct = default);
 
+    Task<bool> ExistsWithReferenceAsync(Guid orgId, string reference, CancellationToken ct = default);
     Task AddAsync(JournalEntry entry, CancellationToken ct = default);
     void Delete(JournalEntry entry);
     Task SaveChangesAsync(CancellationToken ct = default);

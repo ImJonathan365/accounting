@@ -134,6 +134,16 @@ public class JournalService : IJournalService
         if (accounts.Count != accountIds.Count)
             throw new InvalidOperationException("Una o más cuentas no existen en esta organización.");
 
+        var inactive = accounts.Where(a => !a.IsActive).Select(a => a.Code).ToList();
+        if (inactive.Count > 0)
+            throw new InvalidOperationException(
+                $"Las siguientes cuentas están inactivas: {string.Join(", ", inactive)}.");
+
+        var nonPostable = accounts.Where(a => !a.IsPostable).Select(a => a.Code).ToList();
+        if (nonPostable.Count > 0)
+            throw new InvalidOperationException(
+                $"Las siguientes cuentas no admiten movimientos: {string.Join(", ", nonPostable)}.");
+
         var accountMap = accounts.ToDictionary(a => a.Id);
 
         entry.Date        = dto.Date;
@@ -224,6 +234,8 @@ public class JournalService : IJournalService
             throw new InvalidOperationException("Solo se pueden anular asientos en estado Registrado.");
 
         var voidDate = dto.VoidDate ?? DateOnly.FromDateTime(DateTime.Today);
+
+        await AssertPeriodOpenAsync(orgId, voidDate, ct);
 
         // Build a human-readable reference for the counter-entry
         var baseRef = original.Reference ?? original.Id.ToString("N")[..8];

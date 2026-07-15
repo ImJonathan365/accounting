@@ -73,6 +73,10 @@ public class JournalRepository : IJournalRepository
             .Take(count)
             .ToListAsync(ct);
 
+    public Task<bool> ExistsWithReferenceAsync(Guid orgId, string reference, CancellationToken ct = default) =>
+        _db.JournalEntries.AnyAsync(
+            e => e.OrganizationId == orgId && e.Reference == reference && e.Status != JournalStatus.Voided, ct);
+
     public async Task AddAsync(JournalEntry entry, CancellationToken ct = default) =>
         await _db.JournalEntries.AddAsync(entry, ct);
 

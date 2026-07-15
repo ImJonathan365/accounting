@@ -14,8 +14,14 @@ public interface ITaxRateService
 
 public class TaxRateService : ITaxRateService
 {
-    private readonly ITaxRateRepository _repo;
-    public TaxRateService(ITaxRateRepository repo) => _repo = repo;
+    private readonly ITaxRateRepository  _repo;
+    private readonly IAccountRepository  _accounts;
+
+    public TaxRateService(ITaxRateRepository repo, IAccountRepository accounts)
+    {
+        _repo     = repo;
+        _accounts = accounts;
+    }
 
     public async Task<List<TaxRateDto>> GetAllAsync(Guid orgId, CancellationToken ct = default) =>
         (await _repo.GetByOrganizationAsync(orgId, ct)).Select(Map).ToList();
@@ -28,6 +34,12 @@ public class TaxRateService : ITaxRateService
 
     public async Task<TaxRateDto> CreateAsync(Guid orgId, CreateTaxRateDto dto, CancellationToken ct = default)
     {
+        if (await _repo.NameExistsAsync(orgId, dto.Name.Trim(), ct))
+            throw new InvalidOperationException($"Ya existe una tasa de impuesto con el nombre \"{dto.Name.Trim()}\".");
+
+        if (await _accounts.GetByIdAsync(dto.TaxAccountId, orgId, ct) is null)
+            throw new ArgumentException("La cuenta de impuesto no pertenece a esta organización.");
+
         var taxRate = new TaxRate
         {
             OrganizationId = orgId,
@@ -44,9 +56,22 @@ public class TaxRateService : ITaxRateService
     public async Task<TaxRateDto> UpdateAsync(Guid orgId, Guid id, UpdateTaxRateDto dto, CancellationToken ct = default)
     {
         var taxRate = await _repo.GetByIdAsync(orgId, id, ct) ?? throw new KeyNotFoundException("Tasa de impuesto no encontrada.");
-        if (dto.Name         is not null) taxRate.Name         = dto.Name.Trim();
+        if (dto.Name is not null)
+        {
+            var newName = dto.Name.Trim();
+            if (newName != taxRate.Name && await _repo.NameExistsAsync(orgId, newName, ct))
+                throw new InvalidOperationException($"Ya existe una tasa de impuesto con el nombre \"{newName}\".");
+            taxRate.Name = newName;
+        }
         if (dto.Rate         is not null) taxRate.Rate         = dto.Rate.Value;
-        if (dto.TaxAccountId is not null) taxRate.TaxAccountId = dto.TaxAccountId.Value;
+        if (dto.TaxAccountId is not null)
+        {
+            var newAccount = await _accounts.GetByIdAsync(dto.TaxAccountId.Value, orgId, ct);
+            if (newAccount is null)
+                throw new ArgumentException("La cuenta de impuesto no pertenece a esta organización.");
+            taxRate.TaxAccountId = dto.TaxAccountId.Value;
+            taxRate.TaxAccount   = newAccount;
+        }
         if (dto.IsActive     is not null) taxRate.IsActive     = dto.IsActive.Value;
         await _repo.SaveChangesAsync(ct);
         return Map(taxRate);

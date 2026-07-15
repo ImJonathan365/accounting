@@ -24,6 +24,9 @@ public class ProductRepository : IProductRepository
             .Include(p => p.TaxRate)
             .FirstOrDefaultAsync(p => p.OrganizationId == orgId && p.Id == id, ct);
 
+    public Task<bool> NameExistsAsync(Guid orgId, string name, CancellationToken ct = default) =>
+        _db.Products.AnyAsync(p => p.OrganizationId == orgId && p.Name == name, ct);
+
     public async Task AddAsync(Product product, CancellationToken ct = default) =>
         await _db.Products.AddAsync(product, ct);
 

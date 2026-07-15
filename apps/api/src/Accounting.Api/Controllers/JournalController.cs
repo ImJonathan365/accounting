@@ -61,6 +61,9 @@ public class JournalController : ControllerBase
     public async Task<ActionResult<JournalEntryDto>> Create(
         Guid orgId, [FromBody] CreateJournalEntryDto dto, CancellationToken ct)
     {
+        if (!dto.IsDraft && !OrgAuth.HasRole(HttpContext, "owner", "admin"))
+            return Forbid();
+
         var created = await _service.CreateAsync(orgId, dto, ct);
         var action  = dto.IsDraft ? AuditActions.JournalDraftCreated : AuditActions.JournalPostedCreated;
         var verb    = dto.IsDraft ? "Creó borrador" : "Registró asiento";

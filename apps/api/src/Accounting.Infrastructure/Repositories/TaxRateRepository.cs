@@ -27,6 +27,9 @@ public class TaxRateRepository : ITaxRateRepository
             .Where(t => t.OrganizationId == orgId && ids.Contains(t.Id))
             .ToListAsync(ct);
 
+    public Task<bool> NameExistsAsync(Guid orgId, string name, CancellationToken ct = default) =>
+        _db.TaxRates.AnyAsync(t => t.OrganizationId == orgId && t.Name == name, ct);
+
     public async Task AddAsync(TaxRate taxRate, CancellationToken ct = default) =>
         await _db.TaxRates.AddAsync(taxRate, ct);
 

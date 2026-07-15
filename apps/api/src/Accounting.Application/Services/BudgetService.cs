@@ -1,6 +1,7 @@
 using Accounting.Application.DTOs;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Domain.Entities;
+using Accounting.Domain.Enums;
 
 namespace Accounting.Application.Services;
 
@@ -112,7 +113,11 @@ public class BudgetService : IBudgetService
             foreach (var row in actual.Where(r => r.AccountId == g.Key))
             {
                 var idx = row.Month - 1;
-                actualByMonth[idx] = row.Credit - row.Debit;
+                // Credit-normal accounts (Income, Liability, Equity): Credit - Debit
+                // Debit-normal accounts (Asset, Expense): Debit - Credit
+                actualByMonth[idx] = acc?.Type is AccountType.Income or AccountType.Liability or AccountType.Equity
+                    ? row.Credit - row.Debit
+                    : row.Debit - row.Credit;
             }
 
             return new BudgetVsActualLineDto(

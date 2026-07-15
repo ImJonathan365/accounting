@@ -2,6 +2,7 @@ using Accounting.Api.Filters;
 using Accounting.Api.Helpers;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
+using Accounting.Domain.Entities;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,12 +15,17 @@ namespace Accounting.Api.Controllers;
 [Route("api/organizations/{orgId:guid}/year-end")]
 public class YearEndController : ControllerBase
 {
-    private readonly IYearEndClosingService           _service;
+    private readonly IYearEndClosingService             _service;
+    private readonly IAuditService                      _audit;
     private readonly IValidator<YearEndCloseRequestDto> _validator;
 
-    public YearEndController(IYearEndClosingService service, IValidator<YearEndCloseRequestDto> validator)
+    public YearEndController(
+        IYearEndClosingService service,
+        IAuditService audit,
+        IValidator<YearEndCloseRequestDto> validator)
     {
         _service   = service;
+        _audit     = audit;
         _validator = validator;
     }
 
@@ -36,6 +42,9 @@ public class YearEndController : ControllerBase
 
         await _validator.ValidateAndThrowAsync(dto, ct);
         var userId = OrgAuth.GetUserId(HttpContext);
-        return Ok(await _service.CloseYearAsync(orgId, userId, dto, ct));
+        var result = await _service.CloseYearAsync(orgId, userId, dto, ct);
+        await _audit.LogAsync(orgId, userId, AuditActions.YearEndClosed, "YearEndClosing", result.JournalEntryId ?? Guid.Empty,
+            $"Realizó cierre de ejercicio {dto.Year}", ct);
+        return Ok(result);
     }
 }

@@ -13,21 +13,24 @@ public interface IYearEndClosingService
 
 public class YearEndClosingService : IYearEndClosingService
 {
-    private readonly IYearEndClosingRepository _closings;
-    private readonly IAccountRepository        _accounts;
-    private readonly IReportRepository         _reports;
-    private readonly IJournalRepository        _journal;
+    private readonly IYearEndClosingRepository  _closings;
+    private readonly IAccountRepository         _accounts;
+    private readonly IReportRepository          _reports;
+    private readonly IJournalRepository         _journal;
+    private readonly IAccountingPeriodRepository _periods;
 
     public YearEndClosingService(
         IYearEndClosingRepository closings,
         IAccountRepository accounts,
         IReportRepository reports,
-        IJournalRepository journal)
+        IJournalRepository journal,
+        IAccountingPeriodRepository periods)
     {
         _closings = closings;
         _accounts = accounts;
         _reports  = reports;
         _journal  = journal;
+        _periods  = periods;
     }
 
     public async Task<YearEndStatusDto> GetStatusAsync(Guid orgId, int year, CancellationToken ct = default)
@@ -47,6 +50,16 @@ public class YearEndClosingService : IYearEndClosingService
         var existing = await _closings.GetAsync(orgId, year, ct);
         if (existing is not null)
             throw new InvalidOperationException($"El año {year} ya fue cerrado.");
+
+        for (var month = 1; month <= 12; month++)
+        {
+            if (!await _periods.IsClosedAsync(orgId, year, month, ct))
+            {
+                var monthName = new DateOnly(year, month, 1).ToString("MMMM");
+                throw new InvalidOperationException(
+                    $"Debes cerrar todos los períodos de {year} antes del cierre de ejercicio. El período de {monthName} está abierto.");
+            }
+        }
 
         var retainedAccount = await _accounts.GetByIdAsync(dto.RetainedEarningsAccountId, orgId, ct)
             ?? throw new KeyNotFoundException("La cuenta de resultados acumulados no existe.");
@@ -125,6 +138,6 @@ public class YearEndClosingService : IYearEndClosingService
             ? new YearEndStatusDto(year, false, null, null, null)
             : new YearEndStatusDto(
                 year, true,
-                $"{c.ClosedBy.FirstName} {c.ClosedBy.LastName}",
+                c.ClosedBy is not null ? $"{c.ClosedBy.FirstName} {c.ClosedBy.LastName}" : null,
                 c.ClosedAtUtc, c.JournalEntryId);
 }

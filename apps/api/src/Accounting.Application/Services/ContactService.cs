@@ -7,10 +7,10 @@ namespace Accounting.Application.Services;
 
 public interface IContactService
 {
-    Task<List<ContactDto>> GetAllAsync(Guid orgId, ContactType? type = null, CancellationToken ct = default);
-    Task<ContactDto>       GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
-    Task<ContactDto>       CreateAsync(Guid orgId, CreateContactDto dto, CancellationToken ct = default);
-    Task<ContactDto>       UpdateAsync(Guid orgId, Guid id, UpdateContactDto dto, CancellationToken ct = default);
+    Task<PagedResult<ContactDto>> GetPagedAsync(Guid orgId, ContactType? type, string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<ContactDto>              GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    Task<ContactDto>              CreateAsync(Guid orgId, CreateContactDto dto, CancellationToken ct = default);
+    Task<ContactDto>              UpdateAsync(Guid orgId, Guid id, UpdateContactDto dto, CancellationToken ct = default);
 }
 
 public class ContactService : IContactService
@@ -18,18 +18,16 @@ public class ContactService : IContactService
     private readonly IContactRepository _repo;
     public ContactService(IContactRepository repo) => _repo = repo;
 
-    public async Task<List<ContactDto>> GetAllAsync(Guid orgId, ContactType? type = null, CancellationToken ct = default)
+    public async Task<PagedResult<ContactDto>> GetPagedAsync(Guid orgId, ContactType? type, string? search, int page, int pageSize, CancellationToken ct = default)
     {
-        var list = await _repo.GetByOrganizationAsync(orgId, type, ct);
-        return list.Select(Map).ToList();
+        var (items, total) = await _repo.GetPagedAsync(orgId, type, search, page, pageSize, ct);
+        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+        return new PagedResult<ContactDto>(items, total, page, pageSize, totalPages);
     }
 
-    public async Task<ContactDto> GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default)
-    {
-        var contact = await _repo.GetByIdAsync(orgId, id, ct)
+    public async Task<ContactDto> GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default) =>
+        await _repo.GetDtoByIdAsync(orgId, id, ct)
             ?? throw new KeyNotFoundException("Contacto no encontrado.");
-        return Map(contact);
-    }
 
     public async Task<ContactDto> CreateAsync(Guid orgId, CreateContactDto dto, CancellationToken ct = default)
     {
@@ -62,10 +60,10 @@ public class ContactService : IContactService
         if (dto.IsActive is not null) contact.IsActive = dto.IsActive.Value;
 
         await _repo.SaveChangesAsync(ct);
-        return Map(contact);
+        return await _repo.GetDtoByIdAsync(orgId, id, ct) ?? throw new KeyNotFoundException("Contacto no encontrado.");
     }
 
     private static ContactDto Map(Contact c) => new(
         c.Id, c.Type, c.Name, c.Email, c.Phone, c.Address, c.Notes, c.IsActive,
-        c.Invoices.Count);
+        InvoiceCount: 0);
 }
