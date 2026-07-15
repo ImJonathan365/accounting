@@ -5,44 +5,25 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Accounting.Api.Filters;
 
-public class OrgMembershipFilter : IAsyncActionFilter
+public class UserSecurityStampFilter : IAsyncActionFilter
 {
-    private readonly IOrganizationRepository _orgs;
-    private readonly IUserRepository         _users;
-
-    public OrgMembershipFilter(IOrganizationRepository orgs, IUserRepository users)
-    {
-        _orgs  = orgs;
-        _users = users;
-    }
+    private readonly IUserRepository _users;
+    public UserSecurityStampFilter(IUserRepository users) => _users = users;
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (!context.RouteData.Values.TryGetValue("orgId", out var orgIdObj) ||
-            !Guid.TryParse(orgIdObj?.ToString(), out var orgId))
-        {
-            context.Result = new BadRequestObjectResult(new
-            {
-                type   = "https://httpstatuses.com/400",
-                title  = "Identificador de organización inválido.",
-                status = 400
-            });
-            return;
-        }
-
         var sub = context.HttpContext.User.FindFirstValue("sub");
         if (!Guid.TryParse(sub, out var userId))
         {
-            context.Result = new UnauthorizedObjectResult(new
+            context.Result = new ObjectResult(new
             {
                 type   = "https://httpstatuses.com/401",
                 title  = "Token inválido.",
                 status = 401
-            });
+            }) { StatusCode = StatusCodes.Status401Unauthorized };
             return;
         }
 
-        // Reject tokens without security_stamp or with a stale one (password changed)
         var stampClaim = context.HttpContext.User.FindFirstValue("security_stamp");
         if (!Guid.TryParse(stampClaim, out var claimStamp))
         {
@@ -66,23 +47,6 @@ public class OrgMembershipFilter : IAsyncActionFilter
             }) { StatusCode = StatusCodes.Status401Unauthorized };
             return;
         }
-
-        // Single query: get role (null → not a member)
-        var role = await _orgs.GetMemberRoleAsync(orgId, userId);
-        if (role is null)
-        {
-            context.Result = new ObjectResult(new
-            {
-                type   = "https://httpstatuses.com/403",
-                title  = "No tienes acceso a esta organización.",
-                status = 403
-            })
-            { StatusCode = StatusCodes.Status403Forbidden };
-            return;
-        }
-
-        // Store role so controllers can check permissions without extra DB queries
-        context.HttpContext.Items["OrgRole"] = role;
 
         await next();
     }

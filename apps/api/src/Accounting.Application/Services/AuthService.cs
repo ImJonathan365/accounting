@@ -4,7 +4,9 @@ using Accounting.Application.DTOs;
 using Accounting.Application.Interfaces.Repositories;
 using Accounting.Domain.Entities;
 using Accounting.Domain.Enums;
+using Accounting.Domain.Exceptions;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace Accounting.Application.Services;
 
@@ -44,6 +46,7 @@ public class AuthService : IAuthService
     private readonly IValidator<ForgotPasswordDto>     _forgotPasswordValidator;
     private readonly IValidator<ResetPasswordDto>      _resetPasswordValidator;
     private readonly IValidator<VerifyEmailDto>        _verifyEmailValidator;
+    private readonly ILogger<AuthService>              _logger;
 
     public AuthService(
         IUserRepository                   users,
@@ -61,7 +64,8 @@ public class AuthService : IAuthService
         IValidator<LoginDto>              loginValidator,
         IValidator<ForgotPasswordDto>     forgotPasswordValidator,
         IValidator<ResetPasswordDto>      resetPasswordValidator,
-        IValidator<VerifyEmailDto>        verifyEmailValidator)
+        IValidator<VerifyEmailDto>        verifyEmailValidator,
+        ILogger<AuthService>              logger)
     {
         _users                   = users;
         _orgs                    = orgs;
@@ -79,6 +83,7 @@ public class AuthService : IAuthService
         _forgotPasswordValidator = forgotPasswordValidator;
         _resetPasswordValidator  = resetPasswordValidator;
         _verifyEmailValidator    = verifyEmailValidator;
+        _logger                  = logger;
     }
 
     private int RefreshExpiryDays => _authSettings.RefreshExpiryDays;
@@ -124,7 +129,7 @@ public class AuthService : IAuthService
         var verificationUrl = $"{_emailSettings.AppUrl}/verify-email?token={Uri.EscapeDataString(rawVerification)}";
 
         // Welcome email is sent only after email verification
-        _ = _email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl);
+        FireAndForget(_email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl));
 
         return BuildResponse(accessToken, rawRefresh, user, org, membership.Role);
     }
@@ -137,33 +142,46 @@ public class AuthService : IAuthService
 
         var emailLogin = await _externalLogins.GetByProviderAsync(
             AuthProvider.Email, dto.Email.ToLowerInvariant(), ct)
-            ?? throw new UnauthorizedAccessException("Credenciales inválidas.");
+            ?? throw new AuthenticationException("Credenciales inválidas.");
 
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, emailLogin.PasswordHash))
-            throw new UnauthorizedAccessException("Credenciales inválidas.");
+            throw new AuthenticationException("Credenciales inválidas.");
 
         var user = emailLogin.User;
         if (!user.IsActive)
-            throw new UnauthorizedAccessException("La cuenta está desactivada.");
+            throw new AuthenticationException("La cuenta está desactivada.");
 
-        var membership = await _orgs.GetFirstMembershipAsync(user.Id, ct)
-            ?? throw new InvalidOperationException("El usuario no pertenece a ninguna organización.");
+        string? role = null;
+        Organization? org = null;
 
-        var org = await _orgs.GetByIdAsync(membership.OrganizationId, ct)
-            ?? throw new InvalidOperationException("Organización no encontrada.");
+        if (user.LastOrgId.HasValue)
+        {
+            role = await _orgs.GetMemberRoleAsync(user.LastOrgId.Value, user.Id, ct);
+            if (role is not null)
+                org = await _orgs.GetByIdAsync(user.LastOrgId.Value, ct);
+        }
 
-        var accessToken = _tokens.GenerateToken(user, org.Id, membership.Role);
+        if (org is null)
+        {
+            var membership = await _orgs.GetFirstMembershipAsync(user.Id, ct)
+                ?? throw new InvalidOperationException("El usuario no pertenece a ninguna organización.");
+            role = membership.Role;
+            org  = await _orgs.GetByIdAsync(membership.OrganizationId, ct)
+                ?? throw new InvalidOperationException("Organización no encontrada.");
+        }
+
+        var accessToken = _tokens.GenerateToken(user, org.Id, role!);
         var rawRefresh  = await IssueRefreshTokenAsync(user.Id, org.Id, ct);
         await _refreshTokens.SaveChangesAsync(ct);
 
-        return BuildResponse(accessToken, rawRefresh, user, org, membership.Role);
+        return BuildResponse(accessToken, rawRefresh, user, org, role!);
     }
 
     // ── Switch org ──────────────────────────────────────────────────────────
 
     public async Task<AuthResponseDto> SwitchOrgAsync(Guid userId, Guid orgId, CancellationToken ct = default)
     {
-        var user = await _users.GetByIdAsync(userId, ct)
+        var user = await _users.GetForUpdateAsync(userId, ct)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
         var role = await _orgs.GetMemberRoleAsync(orgId, userId, ct)
@@ -171,6 +189,8 @@ public class AuthService : IAuthService
 
         var org = await _orgs.GetByIdAsync(orgId, ct)
             ?? throw new KeyNotFoundException("Organización no encontrada.");
+
+        user.LastOrgId = orgId;
 
         var accessToken = _tokens.GenerateToken(user, org.Id, role);
         var rawRefresh  = await IssueRefreshTokenAsync(user.Id, org.Id, ct);
@@ -187,7 +207,7 @@ public class AuthService : IAuthService
         var stored = await _refreshTokens.GetByHashAsync(hash, ct);
 
         if (stored is null || stored.IsRevoked || stored.ExpiresAtUtc < DateTime.UtcNow)
-            throw new UnauthorizedAccessException("Token de actualización inválido o expirado.");
+            throw new AuthenticationException("Token de actualización inválido o expirado.");
 
         stored.IsRevoked = true;
 
@@ -195,10 +215,10 @@ public class AuthService : IAuthService
             ?? throw new InvalidOperationException("Usuario no encontrado.");
 
         if (!user.IsActive)
-            throw new UnauthorizedAccessException("La cuenta está desactivada.");
+            throw new AuthenticationException("La cuenta está desactivada.");
 
         var role = await _orgs.GetMemberRoleAsync(stored.OrgId, user.Id, ct)
-            ?? throw new UnauthorizedAccessException("El usuario ya no tiene acceso a esta organización.");
+            ?? throw new AuthenticationException("El usuario ya no tiene acceso a esta organización.");
 
         var org = await _orgs.GetByIdAsync(stored.OrgId, ct)
             ?? throw new KeyNotFoundException("Organización no encontrada.");
@@ -240,7 +260,7 @@ public class AuthService : IAuthService
         // Invalidate any existing reset tokens
         await _passwordResets.DeleteAllForUserAsync(user.Id, ct);
 
-        var rawToken  = GenerateRaw();
+        var rawToken  = TokenHelper.GenerateRaw();
         var tokenHash = HashToken(rawToken);
         await _passwordResets.AddAsync(new PasswordResetToken
         {
@@ -251,7 +271,7 @@ public class AuthService : IAuthService
         await _passwordResets.SaveChangesAsync(ct);
 
         var resetUrl = $"{_emailSettings.AppUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
-        _ = _email.SendPasswordResetAsync(user.Email, user.FirstName, resetUrl);
+        FireAndForget(_email.SendPasswordResetAsync(user.Email, user.FirstName, resetUrl));
     }
 
     public async Task ResetPasswordAsync(ResetPasswordDto dto, CancellationToken ct = default)
@@ -265,19 +285,22 @@ public class AuthService : IAuthService
         if (!token.IsValid)
             throw new InvalidOperationException("El enlace de recuperación ha expirado. Solicita uno nuevo.");
 
-        var user = await _users.GetByIdAsync(token.UserId, ct)
+        var user = await _users.GetForUpdateAsync(token.UserId, ct)
             ?? throw new InvalidOperationException("Usuario no encontrado.");
 
         var login = await _externalLogins.GetByProviderAsync(
             AuthProvider.Email, user.Email, ct)
             ?? throw new InvalidOperationException("Inicio de sesión no encontrado.");
 
-        login.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-        token.UsedAtUtc    = DateTime.UtcNow;
+        login.PasswordHash   = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        token.UsedAtUtc      = DateTime.UtcNow;
+        user.SecurityStamp   = Guid.NewGuid();
 
         // Revoke all sessions — the user must log in again with the new password
         await _refreshTokens.RevokeAllForUserAsync(user.Id, ct);
         await _passwordResets.SaveChangesAsync(ct);
+
+        FireAndForget(_email.SendPasswordChangedAsync(user.Email, user.FirstName));
     }
 
     // ── Email verification ──────────────────────────────────────────────────
@@ -312,7 +335,7 @@ public class AuthService : IAuthService
         var org = membership is not null
             ? await _orgs.GetByIdAsync(membership.OrganizationId, ct)
             : null;
-        _ = _email.SendWelcomeAsync(user.Email, user.FirstName, org?.Name ?? "");
+        FireAndForget(_email.SendWelcomeAsync(user.Email, user.FirstName, org?.Name ?? ""));
     }
 
     public async Task ResendVerificationAsync(ForgotPasswordDto dto, CancellationToken ct = default)
@@ -328,14 +351,14 @@ public class AuthService : IAuthService
         await _emailVerifications.SaveChangesAsync(ct);
 
         var verificationUrl = $"{_emailSettings.AppUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
-        _ = _email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl);
+        FireAndForget(_email.SendVerificationEmailAsync(user.Email, user.FirstName, verificationUrl));
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private async Task<string> IssueRefreshTokenAsync(Guid userId, Guid orgId, CancellationToken ct)
     {
-        var raw  = GenerateRaw();
+        var raw  = TokenHelper.GenerateRaw();
         var hash = HashToken(raw);
         await _refreshTokens.AddAsync(new RefreshToken
         {
@@ -349,7 +372,7 @@ public class AuthService : IAuthService
 
     private async Task<string> IssueEmailVerificationTokenAsync(Guid userId, CancellationToken ct)
     {
-        var raw  = GenerateRaw();
+        var raw  = TokenHelper.GenerateRaw();
         var hash = HashToken(raw);
         await _emailVerifications.AddAsync(new EmailVerificationToken
         {
@@ -373,12 +396,9 @@ public class AuthService : IAuthService
             Organization:     new OrganizationDto(org.Id, org.Name, role)
         );
 
-    private static string GenerateRaw()
-    {
-        var bytes = new byte[64];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToBase64String(bytes);
-    }
+    private void FireAndForget(Task task) =>
+        task.ContinueWith(t => _logger.LogError(t.Exception, "Fire-and-forget email failed"),
+            TaskContinuationOptions.OnlyOnFaulted);
 
     private static string HashToken(string token)
     {

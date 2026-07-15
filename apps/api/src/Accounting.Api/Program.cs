@@ -101,6 +101,7 @@ builder.Services.AddScoped<IValidator<CreateProductDto>, CreateProductDtoValidat
 
 // Filters
 builder.Services.AddScoped<OrgMembershipFilter>();
+builder.Services.AddScoped<UserSecurityStampFilter>();
 
 // Services
 builder.Services.AddSingleton(new Accounting.Application.Services.AuthSettings
@@ -173,7 +174,8 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 builder.Services.AddCors(o => o.AddPolicy("web", p =>
     p.WithOrigins(builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000")
-     .AllowAnyHeader().AllowAnyMethod()));
+     .WithHeaders("Content-Type", "Authorization")
+     .AllowAnyMethod()));
 
 var app = builder.Build();
 

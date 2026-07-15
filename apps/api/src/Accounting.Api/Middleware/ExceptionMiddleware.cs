@@ -1,3 +1,4 @@
+using Accounting.Domain.Exceptions;
 using FluentValidation;
 using System.Text.Json;
 
@@ -51,10 +52,11 @@ public class ExceptionMiddleware
 
         var (status, title) = ex switch
         {
+            AuthenticationException     => (StatusCodes.Status401Unauthorized,  ex.Message),
             ArgumentException           => (StatusCodes.Status400BadRequest,    ex.Message),
             InvalidOperationException   => (StatusCodes.Status400BadRequest,    ex.Message),
             KeyNotFoundException        => (StatusCodes.Status404NotFound,      ex.Message),
-            UnauthorizedAccessException => (StatusCodes.Status403Forbidden,      ex.Message),
+            UnauthorizedAccessException => (StatusCodes.Status403Forbidden,     ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Error interno del servidor.")
         };
 

@@ -8,6 +8,8 @@ public class User : BaseEntity
     public string FirstName { get; set; } = default!;
     public string LastName { get; set; } = default!;
     public string? AvatarUrl { get; set; }
+    public Guid?   LastOrgId { get; set; }
+    public Guid    SecurityStamp { get; set; } = Guid.NewGuid();
     public DateTime? EmailVerifiedAt { get; set; }
     public bool IsActive { get; set; } = true;
 

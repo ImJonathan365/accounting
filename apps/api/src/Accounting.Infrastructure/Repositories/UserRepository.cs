@@ -19,6 +19,12 @@ public class UserRepository : IUserRepository
     public Task<User?> GetForUpdateAsync(Guid id, CancellationToken ct = default) =>
         _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    public Task<Guid?> GetSecurityStampAsync(Guid id, CancellationToken ct = default) =>
+        _db.Users.AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => (Guid?)u.SecurityStamp)
+            .FirstOrDefaultAsync(ct);
+
     public async Task AddAsync(User user, CancellationToken ct = default) =>
         await _db.Users.AddAsync(user, ct);
 

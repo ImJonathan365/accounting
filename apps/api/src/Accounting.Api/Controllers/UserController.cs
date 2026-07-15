@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Accounting.Api.Filters;
 using Accounting.Application.DTOs;
 using Accounting.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,6 +10,7 @@ namespace Accounting.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize]
+[ServiceFilter(typeof(UserSecurityStampFilter))]
 public class UserController : ControllerBase
 {
     private readonly IUserService  _users;
