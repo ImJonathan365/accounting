@@ -39,8 +39,17 @@ public class HttpEmailNotificationService : IEmailNotificationService
     public Task SendPasswordChangedAsync(string to, string firstName, CancellationToken ct = default) =>
         PostAsync("password-changed", to, new { firstName }, ct);
 
-    public Task SendInvitationAcceptedAsync(string to, string firstName, string orgName, string role, CancellationToken ct = default) =>
-        PostAsync("invitation-accepted", to, new { firstName, orgName, role, appUrl = _settings.AppUrl }, ct);
+    public Task SendInvitationAcceptedAsync(string to, string firstName, string acceptorName, string orgName, string role, CancellationToken ct = default) =>
+        PostAsync("invitation-accepted", to, new { firstName, acceptorName, orgName, role, appUrl = _settings.AppUrl }, ct);
+
+    public Task SendInvitationWelcomeAsync(string to, string firstName, string orgName, string role, CancellationToken ct = default) =>
+        PostAsync("invitation-welcome", to, new { firstName, orgName, role, appUrl = _settings.AppUrl }, ct);
+
+    public Task SendInvitationDeclinedAsync(string to, string firstName, string orgName, CancellationToken ct = default) =>
+        PostAsync("invitation-declined", to, new { firstName, orgName }, ct);
+
+    public Task SendInvitationDeclinedNotifyAsync(string to, string firstName, string declinerName, string orgName, CancellationToken ct = default) =>
+        PostAsync("invitation-declined-notify", to, new { firstName, declinerName, orgName }, ct);
 
     private async Task PostAsync(string type, string to, object payload, CancellationToken ct)
     {

@@ -14,5 +14,8 @@ public interface IEmailNotificationService
     Task SendVerificationEmailAsync(string to, string firstName, string verificationUrl, CancellationToken ct = default);
     Task SendPasswordResetAsync(string to, string firstName, string resetUrl, CancellationToken ct = default);
     Task SendPasswordChangedAsync(string to, string firstName, CancellationToken ct = default);
-    Task SendInvitationAcceptedAsync(string to, string firstName, string orgName, string role, CancellationToken ct = default);
+    Task SendInvitationAcceptedAsync(string to, string firstName, string acceptorName, string orgName, string role, CancellationToken ct = default);
+    Task SendInvitationWelcomeAsync(string to, string firstName, string orgName, string role, CancellationToken ct = default);
+    Task SendInvitationDeclinedAsync(string to, string firstName, string orgName, CancellationToken ct = default);
+    Task SendInvitationDeclinedNotifyAsync(string to, string firstName, string declinerName, string orgName, CancellationToken ct = default);
 }
