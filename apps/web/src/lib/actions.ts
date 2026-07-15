@@ -195,12 +195,11 @@ export async function updateOrgSettingsAction(data: UpdateOrgSettingsRequest) {
 
 export async function acceptInvitationAction(token: string, orgId: string) {
   const authToken = await getServerToken();
-  if (!authToken) redirect("/login?next=" + encodeURIComponent(`/invite?token=${token}`));
+  if (!authToken) redirect("/login?next=" + encodeURIComponent(`/invite?token=${token}&accept=1`));
   await apiClient.invitations.accept(token, authToken);
-  // Switch active org to the one just joined, then go to dashboard
+  // Switch active org to the one just joined — client navigates via router.push after this returns
   const res = await apiClient.auth.switchOrg({ orgId }, authToken);
   await setAuthCookies(res);
-  redirect("/dashboard");
 }
 
 export async function declineInvitationAction(token: string) {

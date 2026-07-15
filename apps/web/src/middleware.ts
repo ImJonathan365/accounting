@@ -18,6 +18,8 @@ const COOKIE_OPTS = {
   secure: process.env.NODE_ENV === "production",
 };
 
+// Reads the JWT expiry time only for proactive refresh scheduling.
+// This does NOT verify the signature — authorization is enforced server-side on every API request.
 function jwtExpiry(token: string): number {
   try {
     const part    = token.split(".")[1];

@@ -12,17 +12,20 @@ interface Props {
   bankAccountId: string;
   token:         string;
   canEdit:       boolean;
+  currentPage:   number;
 }
 
 function fmt(n: number) {
   return n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function ReconciliationView({ data, orgId, bankAccountId, token, canEdit }: Props) {
+export function ReconciliationView({ data, orgId, bankAccountId, token, canEdit, currentPage }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedTx,      setSelectedTx]      = useState<string | null>(null);
   const [selectedJournal, setSelectedJournal] = useState<string | null>(null);
+
+  const { items: pendingTxs, totalPages } = data.unmatchedTransactions;
 
   function doAction(action: "match" | "exclude" | "unmatch", txId: string, journalId?: string) {
     startTransition(async () => {
@@ -51,20 +54,18 @@ export function ReconciliationView({ data, orgId, bankAccountId, token, canEdit 
     return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Pendiente</span>;
   };
 
-  const allTx = [...data.unmatchedTransactions];
-
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Bank transactions */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Movimientos del banco</h2>
-        {allTx.length === 0 ? (
+        {pendingTxs.length === 0 ? (
           <p className="rounded-xl border border-slate-200 bg-white py-8 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800">
             No hay movimientos pendientes
           </p>
         ) : (
           <div className="space-y-2">
-            {allTx.map((tx) => (
+            {pendingTxs.map((tx) => (
               <div
                 key={tx.id}
                 onClick={() => canEdit && setSelectedTx(selectedTx === tx.id ? null : tx.id)}
@@ -108,6 +109,23 @@ export function ReconciliationView({ data, orgId, bankAccountId, token, canEdit 
                 )}
               </div>
             ))}
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-1">
+            <a
+              href={`?page=${currentPage - 1}`}
+              className={`rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 ${currentPage <= 1 ? "pointer-events-none opacity-40" : ""}`}
+            >
+              Anterior
+            </a>
+            <span className="text-xs text-slate-400">{currentPage} / {totalPages}</span>
+            <a
+              href={`?page=${currentPage + 1}`}
+              className={`rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 ${currentPage >= totalPages ? "pointer-events-none opacity-40" : ""}`}
+            >
+              Siguiente
+            </a>
           </div>
         )}
       </div>

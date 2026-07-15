@@ -17,7 +17,7 @@ const TYPE_COLOR: Record<ContactType, string> = {
   Both:     "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
-interface Props { contacts: Contact[]; orgId: string; token: string; canEdit: boolean; }
+interface Props { contacts: Contact[]; orgId: string; token: string; canEdit: boolean; totalPages: number; currentPage: number; }
 
 function CreateContactModal({ orgId, token, onClose }: { orgId: string; token: string; onClose: () => void }) {
   const router = useRouter();
@@ -95,7 +95,7 @@ function CreateContactModal({ orgId, token, onClose }: { orgId: string; token: s
   );
 }
 
-export function ContactList({ contacts, orgId, token, canEdit }: Props) {
+export function ContactList({ contacts, orgId, token, canEdit, totalPages, currentPage }: Props) {
   const [showCreate, setShowCreate] = useState(false);
 
   return (
@@ -141,6 +141,23 @@ export function ContactList({ contacts, orgId, token, canEdit }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-1">
+          <a
+            href={`?page=${currentPage - 1}`}
+            className={`rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 ${currentPage <= 1 ? "pointer-events-none opacity-40" : ""}`}
+          >
+            Anterior
+          </a>
+          <span className="text-xs text-slate-400">{currentPage} / {totalPages}</span>
+          <a
+            href={`?page=${currentPage + 1}`}
+            className={`rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700 ${currentPage >= totalPages ? "pointer-events-none opacity-40" : ""}`}
+          >
+            Siguiente
+          </a>
         </div>
       )}
     </>

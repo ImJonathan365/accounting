@@ -287,8 +287,10 @@ export const apiClient = {
       request<BankAccount[]>(`/api/organizations/${orgId}/bank-accounts`, {}, token),
     create: (orgId: string, data: CreateBankAccountRequest, token: string) =>
       request<BankAccount>(`/api/organizations/${orgId}/bank-accounts`, { method: "POST", body: JSON.stringify(data) }, token),
-    getReconciliation: (orgId: string, bankAccountId: string, token: string) =>
-      request<BankReconciliation>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/reconciliation`, {}, token),
+    getReconciliation: (orgId: string, bankAccountId: string, token: string, page = 1, pageSize = 50) => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request<BankReconciliation>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/reconciliation?${params}`, {}, token);
+    },
     import: (orgId: string, bankAccountId: string, rows: ImportBankTransactionRow[], token: string) =>
       request<BankTransaction[]>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/import`, { method: "POST", body: JSON.stringify(rows) }, token),
     match: (orgId: string, bankAccountId: string, txId: string, journalEntryId: string, token: string) =>
@@ -300,8 +302,15 @@ export const apiClient = {
   },
 
   contacts: {
-    list: (orgId: string, token: string, type?: string) =>
-      request<Contact[]>(`/api/organizations/${orgId}/contacts${type ? `?type=${type}` : ""}`, {}, token),
+    list: (orgId: string, token: string, opts?: { type?: string; search?: string; page?: number; pageSize?: number }) => {
+      const params = new URLSearchParams();
+      if (opts?.type)     params.set("type",     opts.type);
+      if (opts?.search)   params.set("search",   opts.search);
+      if (opts?.page)     params.set("page",     String(opts.page));
+      if (opts?.pageSize) params.set("pageSize", String(opts.pageSize));
+      const qs = params.toString();
+      return request<PagedResult<Contact>>(`/api/organizations/${orgId}/contacts${qs ? `?${qs}` : ""}`, {}, token);
+    },
     getById: (orgId: string, id: string, token: string) =>
       request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, {}, token),
     create: (orgId: string, data: CreateContactRequest, token: string) =>
@@ -311,8 +320,15 @@ export const apiClient = {
   },
 
   invoices: {
-    list: (orgId: string, token: string, type?: string) =>
-      request<Invoice[]>(`/api/organizations/${orgId}/invoices${type ? `?type=${type}` : ""}`, {}, token),
+    list: (orgId: string, token: string, type?: string, status?: string, search?: string, from?: string, to?: string, page = 1, pageSize = 25) => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (type)   params.set("type",   type);
+      if (status) params.set("status", status);
+      if (search) params.set("search", search);
+      if (from)   params.set("from",   from);
+      if (to)     params.set("to",     to);
+      return request<PagedResult<Invoice>>(`/api/organizations/${orgId}/invoices?${params}`, {}, token);
+    },
     getById: (orgId: string, id: string, token: string) =>
       request<Invoice>(`/api/organizations/${orgId}/invoices/${id}`, {}, token),
     create: (orgId: string, data: CreateInvoiceRequest, token: string) =>

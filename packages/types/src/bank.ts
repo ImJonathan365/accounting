@@ -1,3 +1,5 @@
+import type { PagedResult } from "./journal";
+
 export type BankTransactionType   = "Credit" | "Debit";
 export type BankTransactionStatus = "Pending" | "Matched" | "Excluded";
 
@@ -34,12 +36,12 @@ export interface UnmatchedJournal {
 }
 
 export interface BankReconciliation {
-  bankAccount:            BankAccount;
-  unmatchedTransactions:  BankTransaction[];
+  bankAccount:             BankAccount;
+  unmatchedTransactions:   PagedResult<BankTransaction>;
   unmatchedJournalEntries: UnmatchedJournal[];
-  bankBalance:            number;
-  bookBalance:            number;
-  difference:             number;
+  bankBalance:             number;
+  bookBalance:             number;
+  difference:              number;
 }
 
 export interface CreateBankAccountRequest {

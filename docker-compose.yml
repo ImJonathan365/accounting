@@ -1,4 +1,12 @@
 services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: accounting-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
   postgres:
     image: postgres:16-alpine
     container_name: accounting-db

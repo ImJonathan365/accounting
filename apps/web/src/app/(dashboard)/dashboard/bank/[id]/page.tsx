@@ -7,17 +7,25 @@ import { ImportTransactionsButton } from "./_components/ImportTransactionsButton
 
 export const dynamic = "force-dynamic";
 
-export default async function BankDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BankDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
+}) {
   const [token, orgId, role] = await Promise.all([
     getServerToken(), getCurrentOrgId(), getCurrentUserRole(),
   ]);
   if (!token || !orgId) redirect("/login");
 
-  const { id } = await params;
+  const { id }   = await params;
+  const { page } = await searchParams;
+  const currentPage = Math.max(1, parseInt(page ?? "1", 10) || 1);
   const canEdit = role === "owner" || role === "admin";
 
   try {
-    const data = await apiClient.bank.getReconciliation(orgId, id, token);
+    const data = await apiClient.bank.getReconciliation(orgId, id, token, currentPage);
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -37,7 +45,7 @@ export default async function BankDetailPage({ params }: { params: Promise<{ id:
           {[
             { label: "Saldo banco", value: data.bankBalance },
             { label: "Diferencia", value: data.difference },
-            { label: "Sin conciliar", value: data.unmatchedTransactions.length, isCnt: true },
+            { label: "Sin conciliar", value: data.unmatchedTransactions.total, isCnt: true },
           ].map(({ label, value, isCnt }) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
               <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
@@ -58,6 +66,7 @@ export default async function BankDetailPage({ params }: { params: Promise<{ id:
           bankAccountId={id}
           token={token}
           canEdit={canEdit}
+          currentPage={currentPage}
         />
       </div>
     );
