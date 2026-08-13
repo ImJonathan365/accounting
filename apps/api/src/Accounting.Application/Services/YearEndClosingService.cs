@@ -51,9 +51,11 @@ public class YearEndClosingService : IYearEndClosingService
         if (existing is not null)
             throw new InvalidOperationException($"El año {year} ya fue cerrado.");
 
+        var closedPeriods = await _periods.GetClosedForYearAsync(orgId, year, ct);
+        var closedMonths  = closedPeriods.Select(p => p.Month).ToHashSet();
         for (var month = 1; month <= 12; month++)
         {
-            if (!await _periods.IsClosedAsync(orgId, year, month, ct))
+            if (!closedMonths.Contains(month))
             {
                 var monthName = new DateOnly(year, month, 1).ToString("MMMM");
                 throw new InvalidOperationException(

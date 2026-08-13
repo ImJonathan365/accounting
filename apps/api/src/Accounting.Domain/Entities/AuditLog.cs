@@ -34,29 +34,38 @@ public static class AuditActions
     public const string InvoicePaymentAdded = "invoice.payment_added";
     public const string InvoiceVoided       = "invoice.voided";
 
-    public const string BankTxMatched   = "bank.tx_matched";
-    public const string BankTxExcluded  = "bank.tx_excluded";
-    public const string BankTxUnmatched = "bank.tx_unmatched";
-    public const string BankImported    = "bank.imported";
+    public const string BankAccountCreated = "bank.account_created";
+    public const string BankTxMatched      = "bank.tx_matched";
+    public const string BankTxExcluded     = "bank.tx_excluded";
+    public const string BankTxUnmatched    = "bank.tx_unmatched";
+    public const string BankImported       = "bank.imported";
 
     public const string PeriodClosed   = "period.closed";
     public const string PeriodReopened = "period.reopened";
 
     public const string YearEndClosed = "yearend.closed";
 
-    public const string RecurringGenerated = "recurring.generated";
+    public const string RecurringEntryCreated = "recurring.created";
+    public const string RecurringEntryUpdated = "recurring.updated";
+    public const string RecurringEntryDeleted = "recurring.deleted";
+    public const string RecurringGenerated    = "recurring.generated";
 
     public const string BudgetCreated      = "budget.created";
     public const string BudgetLineUpserted = "budget.line_upserted";
 
     public const string ContactCreated     = "contact.created";
     public const string ContactUpdated     = "contact.updated";
+    public const string ContactDeleted     = "contact.deleted";
 
     public const string TaxRateCreated     = "taxrate.created";
     public const string TaxRateUpdated     = "taxrate.updated";
+    public const string TaxRateDeleted     = "taxrate.deleted";
 
     public const string ProductCreated     = "product.created";
     public const string ProductUpdated     = "product.updated";
+    public const string ProductDeleted     = "product.deleted";
+
+    public const string BudgetDeleted      = "budget.deleted";
 
     public const string OrgSettingsUpdated = "orgsettings.updated";
     public const string OpeningBalancesSet = "openingbalances.set";

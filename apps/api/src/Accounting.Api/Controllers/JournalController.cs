@@ -76,6 +76,7 @@ public class JournalController : ControllerBase
     public async Task<ActionResult<JournalEntryDto>> Update(
         Guid orgId, Guid id, [FromBody] UpdateJournalEntryDto dto, CancellationToken ct)
     {
+        if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         var updated = await _service.UpdateAsync(orgId, id, dto, ct);
         await _audit.LogAsync(orgId, CurrentUserId,
             AuditActions.JournalUpdated, "JournalEntry", id,

@@ -53,6 +53,8 @@ public class RecurringEntriesController : ControllerBase
 
         await _createValidator.ValidateAndThrowAsync(dto, ct);
         var result = await _service.CreateAsync(orgId, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.RecurringEntryCreated, "RecurringEntry", result.Id,
+            $"Creó asiento recurrente \"{result.Description}\"", ct);
         return CreatedAtAction(nameof(GetById), new { orgId, id = result.Id }, result);
     }
 
@@ -64,7 +66,10 @@ public class RecurringEntriesController : ControllerBase
             return Forbid();
 
         await _updateValidator.ValidateAndThrowAsync(dto, ct);
-        return Ok(await _service.UpdateAsync(orgId, id, dto, ct));
+        var result = await _service.UpdateAsync(orgId, id, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.RecurringEntryUpdated, "RecurringEntry", id,
+            $"Actualizó asiento recurrente \"{result.Description}\"", ct);
+        return Ok(result);
     }
 
     [HttpDelete("{id:guid}")]
@@ -73,7 +78,10 @@ public class RecurringEntriesController : ControllerBase
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin"))
             return Forbid();
 
+        var entry = await _service.GetByIdAsync(orgId, id, ct);
         await _service.DeleteAsync(orgId, id, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.RecurringEntryDeleted, "RecurringEntry", id,
+            $"Eliminó asiento recurrente \"{entry.Description}\"", ct);
         return NoContent();
     }
 

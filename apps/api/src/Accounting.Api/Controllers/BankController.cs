@@ -46,6 +46,8 @@ public class BankController : ControllerBase
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         await _createAccountValidator.ValidateAndThrowAsync(dto, ct);
         var result = await _service.CreateAccountAsync(orgId, dto, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.BankAccountCreated, "BankAccount", result.Id,
+            $"Creó cuenta bancaria \"{result.Name}\"", ct);
         return Ok(result);
     }
 
@@ -67,7 +69,10 @@ public class BankController : ControllerBase
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
         foreach (var row in rows)
             await _importValidator.ValidateAndThrowAsync(row, ct);
-        return Ok(await _service.ImportTransactionsAsync(orgId, bankAccountId, rows, ct));
+        var result = await _service.ImportTransactionsAsync(orgId, bankAccountId, rows, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.BankImported, "BankAccount", bankAccountId,
+            $"Importó {result.Count} transacciones vía JSON", ct);
+        return Ok(result);
     }
 
     [HttpPost("{bankAccountId:guid}/transactions/import-csv")]
