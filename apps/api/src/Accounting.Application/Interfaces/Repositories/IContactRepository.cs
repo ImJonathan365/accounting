@@ -11,5 +11,7 @@ public interface IContactRepository
     Task<Contact?>      GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task<ContactDto?>   GetDtoByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task                AddAsync(Contact contact, CancellationToken ct = default);
+    Task<bool>          HasInvoicesAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    void                Remove(Contact contact);
     Task                SaveChangesAsync(CancellationToken ct = default);
 }

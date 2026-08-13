@@ -9,5 +9,7 @@ public interface ITaxRateRepository
     Task<List<TaxRate>> GetByIdsAsync(IEnumerable<Guid> ids, Guid orgId, CancellationToken ct = default);
     Task<bool>          NameExistsAsync(Guid orgId, string name, CancellationToken ct = default);
     Task                AddAsync(TaxRate taxRate, CancellationToken ct = default);
+    Task<bool>          IsUsedAsync(Guid orgId, Guid id, CancellationToken ct = default);
+    void                Remove(TaxRate taxRate);
     Task                SaveChangesAsync(CancellationToken ct = default);
 }

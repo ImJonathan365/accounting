@@ -7,6 +7,7 @@ public interface IBudgetRepository
     Task<List<Budget>> GetByOrganizationAsync(Guid orgId, CancellationToken ct = default);
     Task<Budget?>      GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task               AddAsync(Budget budget, CancellationToken ct = default);
+    void               Remove(Budget budget);
     void               RemoveLine(BudgetLine line);
     Task               SaveChangesAsync(CancellationToken ct = default);
 }

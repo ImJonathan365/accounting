@@ -10,6 +10,7 @@ public interface ITaxRateService
     Task<TaxRateDto>       GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task<TaxRateDto>       CreateAsync(Guid orgId, CreateTaxRateDto dto, CancellationToken ct = default);
     Task<TaxRateDto>       UpdateAsync(Guid orgId, Guid id, UpdateTaxRateDto dto, CancellationToken ct = default);
+    Task                   DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class TaxRateService : ITaxRateService
@@ -66,15 +67,24 @@ public class TaxRateService : ITaxRateService
         if (dto.Rate         is not null) taxRate.Rate         = dto.Rate.Value;
         if (dto.TaxAccountId is not null)
         {
-            var newAccount = await _accounts.GetByIdAsync(dto.TaxAccountId.Value, orgId, ct);
-            if (newAccount is null)
+            if (await _accounts.GetByIdAsync(dto.TaxAccountId.Value, orgId, ct) is null)
                 throw new ArgumentException("La cuenta de impuesto no pertenece a esta organización.");
             taxRate.TaxAccountId = dto.TaxAccountId.Value;
-            taxRate.TaxAccount   = newAccount;
         }
         if (dto.IsActive     is not null) taxRate.IsActive     = dto.IsActive.Value;
         await _repo.SaveChangesAsync(ct);
-        return Map(taxRate);
+        var updated = await _repo.GetByIdAsync(orgId, id, ct);
+        return Map(updated!);
+    }
+
+    public async Task DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default)
+    {
+        var taxRate = await _repo.GetByIdAsync(orgId, id, ct)
+            ?? throw new KeyNotFoundException("Tasa de impuesto no encontrada.");
+        if (await _repo.IsUsedAsync(orgId, id, ct))
+            throw new InvalidOperationException("No se puede eliminar la tasa de impuesto porque está en uso en productos o facturas.");
+        _repo.Remove(taxRate);
+        await _repo.SaveChangesAsync(ct);
     }
 
     private static TaxRateDto Map(TaxRate t) =>

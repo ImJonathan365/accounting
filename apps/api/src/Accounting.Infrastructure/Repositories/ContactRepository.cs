@@ -71,5 +71,10 @@ public class ContactRepository : IContactRepository
     public async Task AddAsync(Contact contact, CancellationToken ct = default) =>
         await _db.Contacts.AddAsync(contact, ct);
 
+    public Task<bool> HasInvoicesAsync(Guid orgId, Guid id, CancellationToken ct = default) =>
+        _db.Invoices.AnyAsync(i => i.OrganizationId == orgId && i.ContactId == id, ct);
+
+    public void Remove(Contact contact) => _db.Contacts.Remove(contact);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

@@ -74,4 +74,15 @@ public class ContactsController : ControllerBase
             $"Editó el contacto \"{result.Name}\"", ct);
         return Ok(result);
     }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid orgId, Guid id, CancellationToken ct)
+    {
+        if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _service.DeleteAsync(orgId, id, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.ContactDeleted, "Contact", id,
+            "Eliminó el contacto.", ct);
+        return NoContent();
+    }
 }

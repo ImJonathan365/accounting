@@ -30,5 +30,7 @@ public class ProductRepository : IProductRepository
     public async Task AddAsync(Product product, CancellationToken ct = default) =>
         await _db.Products.AddAsync(product, ct);
 
+    public void Remove(Product product) => _db.Products.Remove(product);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

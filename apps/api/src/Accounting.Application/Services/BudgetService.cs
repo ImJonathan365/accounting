@@ -12,6 +12,7 @@ public interface IBudgetService
     Task<BudgetDto>            CreateAsync(Guid orgId, CreateBudgetDto dto, CancellationToken ct = default);
     Task<BudgetDto>            UpsertLineAsync(Guid orgId, Guid budgetId, UpsertBudgetLineDto dto, CancellationToken ct = default);
     Task<BudgetVsActualDto>    GetVsActualAsync(Guid orgId, Guid budgetId, CancellationToken ct = default);
+    Task                       DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class BudgetService : IBudgetService
@@ -133,6 +134,14 @@ public class BudgetService : IBudgetService
         }).OrderBy(l => l.AccountCode).ToList();
 
         return new BudgetVsActualDto(budget.Year, budget.Name, lines);
+    }
+
+    public async Task DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default)
+    {
+        var budget = await _repo.GetByIdAsync(orgId, id, ct)
+            ?? throw new KeyNotFoundException("Presupuesto no encontrado.");
+        _repo.Remove(budget);
+        await _repo.SaveChangesAsync(ct);
     }
 
     private static BudgetDto Map(Budget b) => new(

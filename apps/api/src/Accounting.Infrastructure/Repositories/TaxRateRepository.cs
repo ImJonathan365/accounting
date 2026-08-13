@@ -33,5 +33,11 @@ public class TaxRateRepository : ITaxRateRepository
     public async Task AddAsync(TaxRate taxRate, CancellationToken ct = default) =>
         await _db.TaxRates.AddAsync(taxRate, ct);
 
+    public async Task<bool> IsUsedAsync(Guid orgId, Guid id, CancellationToken ct = default) =>
+        await _db.Products.AnyAsync(p => p.OrganizationId == orgId && p.TaxRateId == id, ct) ||
+        await _db.InvoiceLines.AnyAsync(l => l.Invoice!.OrganizationId == orgId && l.TaxRateId == id, ct);
+
+    public void Remove(TaxRate taxRate) => _db.TaxRates.Remove(taxRate);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

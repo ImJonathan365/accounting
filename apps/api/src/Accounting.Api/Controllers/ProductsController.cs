@@ -19,15 +19,18 @@ public class ProductsController : ControllerBase
     private readonly IProductService              _service;
     private readonly IAuditService                _audit;
     private readonly IValidator<CreateProductDto> _createValidator;
+    private readonly IValidator<UpdateProductDto> _updateValidator;
 
     public ProductsController(
         IProductService service,
         IAuditService audit,
-        IValidator<CreateProductDto> createValidator)
+        IValidator<CreateProductDto> createValidator,
+        IValidator<UpdateProductDto> updateValidator)
     {
         _service         = service;
         _audit           = audit;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     private Guid CurrentUserId =>
@@ -53,10 +56,22 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ProductDto>> Update(Guid orgId, Guid id, [FromBody] UpdateProductDto dto, CancellationToken ct)
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _updateValidator.ValidateAndThrowAsync(dto, ct);
         var result = await _service.UpdateAsync(orgId, id, dto, ct);
         await _audit.LogAsync(orgId, CurrentUserId,
             AuditActions.ProductUpdated, "Product", id,
             $"Editó el producto/servicio \"{result.Name}\"", ct);
         return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid orgId, Guid id, CancellationToken ct)
+    {
+        if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _service.DeleteAsync(orgId, id, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.ProductDeleted, "Product", id,
+            "Eliminó el producto/servicio.", ct);
+        return NoContent();
     }
 }

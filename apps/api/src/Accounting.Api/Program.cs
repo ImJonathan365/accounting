@@ -97,7 +97,10 @@ builder.Services.AddScoped<IValidator<CreatePaymentDto>, CreatePaymentDtoValidat
 builder.Services.AddScoped<IValidator<CreateBudgetDto>, CreateBudgetDtoValidator>();
 builder.Services.AddScoped<IValidator<UpsertBudgetLineDto>, UpsertBudgetLineDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateTaxRateDto>, CreateTaxRateDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateTaxRateDto>, UpdateTaxRateDtoValidator>();
 builder.Services.AddScoped<IValidator<CreateProductDto>, CreateProductDtoValidator>();
+builder.Services.AddScoped<IValidator<UpdateProductDto>, UpdateProductDtoValidator>();
+builder.Services.AddScoped<IValidator<SetOpeningBalancesRequest>, SetOpeningBalancesRequestValidator>();
 
 // Filters
 builder.Services.AddScoped<OrgMembershipFilter>();
@@ -168,6 +171,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddHealthChecks();
 builder.Services.AddAuthorization();
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -189,9 +193,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
 app.UseMiddleware<ExceptionMiddleware>();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 app.UseCors("web");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 app.Run();

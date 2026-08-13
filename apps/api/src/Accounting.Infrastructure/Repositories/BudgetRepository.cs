@@ -25,6 +25,8 @@ public class BudgetRepository : IBudgetRepository
     public async Task AddAsync(Budget budget, CancellationToken ct = default) =>
         await _db.Budgets.AddAsync(budget, ct);
 
+    public void Remove(Budget budget) => _db.Budgets.Remove(budget);
+
     public void RemoveLine(BudgetLine line) => _db.BudgetLines.Remove(line);
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);

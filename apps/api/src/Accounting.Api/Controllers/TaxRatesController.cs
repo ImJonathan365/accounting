@@ -19,15 +19,18 @@ public class TaxRatesController : ControllerBase
     private readonly ITaxRateService              _service;
     private readonly IAuditService                _audit;
     private readonly IValidator<CreateTaxRateDto> _createValidator;
+    private readonly IValidator<UpdateTaxRateDto> _updateValidator;
 
     public TaxRatesController(
         ITaxRateService service,
         IAuditService audit,
-        IValidator<CreateTaxRateDto> createValidator)
+        IValidator<CreateTaxRateDto> createValidator,
+        IValidator<UpdateTaxRateDto> updateValidator)
     {
         _service         = service;
         _audit           = audit;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     private Guid CurrentUserId =>
@@ -53,10 +56,22 @@ public class TaxRatesController : ControllerBase
     public async Task<ActionResult<TaxRateDto>> Update(Guid orgId, Guid id, [FromBody] UpdateTaxRateDto dto, CancellationToken ct)
     {
         if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _updateValidator.ValidateAndThrowAsync(dto, ct);
         var result = await _service.UpdateAsync(orgId, id, dto, ct);
         await _audit.LogAsync(orgId, CurrentUserId,
             AuditActions.TaxRateUpdated, "TaxRate", id,
             $"Editó la tasa de impuesto \"{result.Name}\"", ct);
         return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid orgId, Guid id, CancellationToken ct)
+    {
+        if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _service.DeleteAsync(orgId, id, ct);
+        await _audit.LogAsync(orgId, CurrentUserId,
+            AuditActions.TaxRateDeleted, "TaxRate", id,
+            "Eliminó la tasa de impuesto.", ct);
+        return NoContent();
     }
 }

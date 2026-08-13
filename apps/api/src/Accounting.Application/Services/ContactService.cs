@@ -11,6 +11,7 @@ public interface IContactService
     Task<ContactDto>              GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task<ContactDto>              CreateAsync(Guid orgId, CreateContactDto dto, CancellationToken ct = default);
     Task<ContactDto>              UpdateAsync(Guid orgId, Guid id, UpdateContactDto dto, CancellationToken ct = default);
+    Task                          DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class ContactService : IContactService
@@ -61,6 +62,16 @@ public class ContactService : IContactService
 
         await _repo.SaveChangesAsync(ct);
         return await _repo.GetDtoByIdAsync(orgId, id, ct) ?? throw new KeyNotFoundException("Contacto no encontrado.");
+    }
+
+    public async Task DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default)
+    {
+        var contact = await _repo.GetByIdAsync(orgId, id, ct)
+            ?? throw new KeyNotFoundException("Contacto no encontrado.");
+        if (await _repo.HasInvoicesAsync(orgId, id, ct))
+            throw new InvalidOperationException("No se puede eliminar el contacto porque tiene facturas asociadas.");
+        _repo.Remove(contact);
+        await _repo.SaveChangesAsync(ct);
     }
 
     private static ContactDto Map(Contact c) => new(

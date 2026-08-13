@@ -69,4 +69,14 @@ public class BudgetsController : ControllerBase
     [HttpGet("{id:guid}/vs-actual")]
     public async Task<ActionResult<BudgetVsActualDto>> GetVsActual(Guid orgId, Guid id, CancellationToken ct) =>
         Ok(await _service.GetVsActualAsync(orgId, id, ct));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid orgId, Guid id, CancellationToken ct)
+    {
+        if (!OrgAuth.HasRole(HttpContext, "owner", "admin")) return Forbid();
+        await _service.DeleteAsync(orgId, id, ct);
+        await _audit.LogAsync(orgId, CurrentUserId, AuditActions.BudgetDeleted, "Budget", id,
+            "Eliminó el presupuesto.", ct);
+        return NoContent();
+    }
 }

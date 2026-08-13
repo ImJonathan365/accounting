@@ -33,6 +33,7 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting("auth")]
     [HttpPost("switch-org")]
     public async Task<ActionResult<AuthResponseDto>> SwitchOrg(
         [FromBody] SwitchOrgDto dto, CancellationToken ct)
@@ -43,6 +44,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponseDto>> Refresh(
         [FromBody] RefreshDto dto, CancellationToken ct)
     {
@@ -77,6 +79,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("verify-email")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> VerifyEmail(
         [FromBody] VerifyEmailDto dto, CancellationToken ct)
     {

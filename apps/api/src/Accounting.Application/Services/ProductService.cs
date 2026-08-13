@@ -10,6 +10,7 @@ public interface IProductService
     Task<ProductDto>       GetByIdAsync(Guid orgId, Guid id, CancellationToken ct = default);
     Task<ProductDto>       CreateAsync(Guid orgId, CreateProductDto dto, CancellationToken ct = default);
     Task<ProductDto>       UpdateAsync(Guid orgId, Guid id, UpdateProductDto dto, CancellationToken ct = default);
+    Task                   DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default);
 }
 
 public class ProductService : IProductService
@@ -89,6 +90,14 @@ public class ProductService : IProductService
         await _repo.SaveChangesAsync(ct);
         var full = await _repo.GetByIdAsync(orgId, product.Id, ct);
         return Map(full!);
+    }
+
+    public async Task DeleteAsync(Guid orgId, Guid id, CancellationToken ct = default)
+    {
+        var product = await _repo.GetByIdAsync(orgId, id, ct)
+            ?? throw new KeyNotFoundException("Producto no encontrado.");
+        _repo.Remove(product);
+        await _repo.SaveChangesAsync(ct);
     }
 
     private static ProductDto Map(Product p) => new(
