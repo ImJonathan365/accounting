@@ -92,17 +92,22 @@ public class TaxRateServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NewAccountId_UpdatesNavProperty()
+    public async Task UpdateAsync_NewAccountId_UpdatesForeignKey()
     {
         var rate       = MakeTaxRate();
         var newAccount = MakeAccount(Guid.NewGuid());
-        _repo.GetByIdAsync(OrgId, RateId, Arg.Any<CancellationToken>()).Returns(rate);
+        // First call: load for update; second call: reload after save
+        var reloaded   = MakeTaxRate();
+        reloaded.TaxAccountId = newAccount.Id;
+        reloaded.TaxAccount   = newAccount;
+        _repo.GetByIdAsync(OrgId, RateId, Arg.Any<CancellationToken>()).Returns(rate, reloaded);
         _accounts.GetByIdAsync(newAccount.Id, OrgId, Arg.Any<CancellationToken>()).Returns(newAccount);
 
-        await _sut.UpdateAsync(OrgId, RateId, new(null, null, newAccount.Id, null));
+        var result = await _sut.UpdateAsync(OrgId, RateId, new(null, null, newAccount.Id, null));
 
         rate.TaxAccountId.Should().Be(newAccount.Id);
-        rate.TaxAccount.Should().Be(newAccount);
+        result.TaxAccountId.Should().Be(newAccount.Id);
+        result.TaxAccountName.Should().Be(newAccount.Name);
     }
 
     private static Account MakeAccount(Guid? id = null) =>
