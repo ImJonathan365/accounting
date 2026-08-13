@@ -74,6 +74,12 @@ services:
         condition: service_healthy
       email-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://localhost:8081/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   web:
     build:
@@ -88,7 +94,8 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:
