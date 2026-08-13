@@ -13,6 +13,13 @@ export interface CreateTaxRateRequest {
   taxAccountId: string;
 }
 
+export interface UpdateTaxRateRequest {
+  name?:         string;
+  rate?:         number;
+  taxAccountId?: string;
+  isActive?:     boolean;
+}
+
 export interface Product {
   id:           string;
   name:         string;
@@ -33,4 +40,13 @@ export interface CreateProductRequest {
   defaultPrice: number;
   accountId:    string;
   taxRateId?:   string;
+}
+
+export interface UpdateProductRequest {
+  name?:         string;
+  description?:  string | null;
+  defaultPrice?: number;
+  accountId?:    string;
+  taxRateId?:    string | null;
+  isActive?:     boolean;
 }
