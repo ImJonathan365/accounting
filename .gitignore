@@ -33,7 +33,4 @@ pnpm-debug.log*
 # Docker volumes (if mounted locally)
 pgdata/
 
-# Context files (local only — copy to USB before formatting)
-CONTEXT.md
-STATUS.md
 context/
