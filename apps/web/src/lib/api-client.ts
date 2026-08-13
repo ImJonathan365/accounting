@@ -12,7 +12,7 @@ import type { RecurringEntry, CreateRecurringEntryRequest, UpdateRecurringEntryR
 import type { BankAccount, BankReconciliation, BankTransaction, CreateBankAccountRequest, ImportBankTransactionRow } from "@accounting/types";
 import type { Contact, Invoice, CreateContactRequest, UpdateContactRequest, CreateInvoiceRequest, CreatePaymentRequest } from "@accounting/types";
 import type { Budget, BudgetVsActual, CreateBudgetRequest, UpsertBudgetLineRequest } from "@accounting/types";
-import type { TaxRate, CreateTaxRateRequest, Product, CreateProductRequest } from "@accounting/types";
+import type { TaxRate, CreateTaxRateRequest, UpdateTaxRateRequest, Product, CreateProductRequest, UpdateProductRequest } from "@accounting/types";
 import type { OverdueInvoice, SetOpeningBalancesRequest, OpeningBalanceResult } from "@accounting/types";
 
 export class ApiError extends Error {
@@ -38,6 +38,21 @@ function statusMessage(status: number): string {
     case 500: return "Error interno del servidor. Intenta de nuevo más tarde.";
     default:  return "Ocurrió un error inesperado. Intenta de nuevo.";
   }
+}
+
+async function requestFile<T>(path: string, body: FormData, token: string): Promise<T> {
+  const res = await fetch(`${apiBaseUrl}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.title ?? statusMessage(res.status));
+  }
+  return res.json() as Promise<T>;
 }
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
@@ -293,6 +308,11 @@ export const apiClient = {
     },
     import: (orgId: string, bankAccountId: string, rows: ImportBankTransactionRow[], token: string) =>
       request<BankTransaction[]>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/import`, { method: "POST", body: JSON.stringify(rows) }, token),
+    importCsv: (orgId: string, bankAccountId: string, file: File, token: string) => {
+      const form = new FormData();
+      form.append("file", file);
+      return requestFile<BankTransaction[]>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/import-csv`, form, token);
+    },
     match: (orgId: string, bankAccountId: string, txId: string, journalEntryId: string, token: string) =>
       request<BankTransaction>(`/api/organizations/${orgId}/bank-accounts/${bankAccountId}/transactions/${txId}/match`, { method: "PATCH", body: JSON.stringify({ journalEntryId }) }, token),
     exclude: (orgId: string, bankAccountId: string, txId: string, token: string) =>
@@ -317,6 +337,8 @@ export const apiClient = {
       request<Contact>(`/api/organizations/${orgId}/contacts`, { method: "POST", body: JSON.stringify(data) }, token),
     update: (orgId: string, id: string, data: UpdateContactRequest, token: string) =>
       request<Contact>(`/api/organizations/${orgId}/contacts/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/contacts/${id}`, { method: "DELETE" }, token),
   },
 
   invoices: {
@@ -355,6 +377,10 @@ export const apiClient = {
       request<TaxRate[]>(`/api/organizations/${orgId}/tax-rates`, {}, token),
     create: (orgId: string, data: CreateTaxRateRequest, token: string) =>
       request<TaxRate>(`/api/organizations/${orgId}/tax-rates`, { method: "POST", body: JSON.stringify(data) }, token),
+    update: (orgId: string, id: string, data: UpdateTaxRateRequest, token: string) =>
+      request<TaxRate>(`/api/organizations/${orgId}/tax-rates/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/tax-rates/${id}`, { method: "DELETE" }, token),
   },
 
   products: {
@@ -362,8 +388,10 @@ export const apiClient = {
       request<Product[]>(`/api/organizations/${orgId}/products`, {}, token),
     create: (orgId: string, data: CreateProductRequest, token: string) =>
       request<Product>(`/api/organizations/${orgId}/products`, { method: "POST", body: JSON.stringify(data) }, token),
-    update: (orgId: string, id: string, data: Partial<CreateProductRequest> & { isActive?: boolean }, token: string) =>
+    update: (orgId: string, id: string, data: UpdateProductRequest, token: string) =>
       request<Product>(`/api/organizations/${orgId}/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }, token),
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/products/${id}`, { method: "DELETE" }, token),
   },
 
   budgets: {
@@ -377,6 +405,8 @@ export const apiClient = {
       request<Budget>(`/api/organizations/${orgId}/budgets/${id}/lines`, { method: "PUT", body: JSON.stringify(data) }, token),
     getVsActual: (orgId: string, id: string, token: string) =>
       request<BudgetVsActual>(`/api/organizations/${orgId}/budgets/${id}/vs-actual`, {}, token),
+    delete: (orgId: string, id: string, token: string) =>
+      request<void>(`/api/organizations/${orgId}/budgets/${id}`, { method: "DELETE" }, token),
   },
 
   get: <T>(path: string, token: string) => request<T>(path, {}, token),

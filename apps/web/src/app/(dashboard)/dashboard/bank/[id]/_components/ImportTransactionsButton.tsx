@@ -4,23 +4,12 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { ImportBankTransactionRow } from "@accounting/types";
 
 interface Props { orgId: string; bankAccountId: string; token: string; }
 
-function parseCsv(text: string): ImportBankTransactionRow[] {
-  const lines = text.trim().split("\n").slice(1); // skip header
-  return lines.map((line) => {
-    const [date, description, amountStr] = line.split(",").map(s => s.trim().replace(/^"|"$/g, ""));
-    const amount = parseFloat(amountStr ?? "0");
-    const txType: "Credit" | "Debit" = amount >= 0 ? "Credit" : "Debit";
-    return { date, description, amount: Math.abs(amount), type: txType };
-  }).filter(r => r.date && r.description && r.amount !== 0);
-}
-
 export function ImportTransactionsButton({ orgId, bankAccountId, token }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const router  = useRouter();
+  const fileRef  = useRef<HTMLInputElement>(null);
+  const router   = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -28,22 +17,15 @@ export function ImportTransactionsButton({ orgId, bankAccountId, token }: Props)
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const rows = parseCsv(text);
-      if (rows.length === 0) { setError("El archivo no contiene transacciones válidas."); return; }
-      startTransition(async () => {
-        try {
-          const result = await apiClient.bank.import(orgId, bankAccountId, rows, token);
-          toast.success(`${result.length} transacciones importadas.`);
-          router.refresh();
-        } catch (err) {
-          setError(err instanceof ApiError ? err.message : "Error al importar.");
-        }
-      });
-    };
-    reader.readAsText(file);
+    startTransition(async () => {
+      try {
+        const result = await apiClient.bank.importCsv(orgId, bankAccountId, file, token);
+        toast.success(`${result.length} transacciones importadas.`);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Error al importar.");
+      }
+    });
     e.target.value = "";
   }
 
@@ -59,7 +41,7 @@ export function ImportTransactionsButton({ orgId, bankAccountId, token }: Props)
           {isPending ? "Importando…" : "Importar CSV"}
         </button>
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-        <p className="text-xs text-slate-400">Formato: fecha, descripción, monto</p>
+        <p className="text-xs text-slate-400">Formato: fecha, descripción, monto[, tipo]</p>
       </div>
     </div>
   );

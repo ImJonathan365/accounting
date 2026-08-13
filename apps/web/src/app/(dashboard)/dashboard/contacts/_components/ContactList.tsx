@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Contact, ContactType, CreateContactRequest } from "@accounting/types";
+
+const inputClass = "block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100";
 
 const TYPE_LABEL: Record<ContactType, string> = {
   Customer: "Cliente",
@@ -28,8 +31,6 @@ function CreateContactModal({ orgId, token, onClose }: { orgId: string; token: s
   const [phone, setPhone]   = useState("");
   const [address, setAddress] = useState("");
   const [error, setError]   = useState<string | null>(null);
-
-  const inputClass = "block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,7 +97,24 @@ function CreateContactModal({ orgId, token, onClose }: { orgId: string; token: s
 }
 
 export function ContactList({ contacts, orgId, token, canEdit, totalPages, currentPage }: Props) {
-  const [showCreate, setShowCreate] = useState(false);
+  const router = useRouter();
+  const [showCreate, setShowCreate]           = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeleting, startDeleteTransition]   = useTransition();
+
+  function handleDelete(id: string) {
+    startDeleteTransition(async () => {
+      try {
+        await apiClient.contacts.delete(orgId, id, token);
+        toast.success("Contacto eliminado.");
+        setConfirmDeleteId(null);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : "Error al eliminar.");
+        setConfirmDeleteId(null);
+      }
+    });
+  }
 
   return (
     <>
@@ -117,7 +135,7 @@ export function ContactList({ contacts, orgId, token, canEdit, totalPages, curre
           <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700/50">
             <thead className="bg-slate-50 dark:bg-slate-700/50">
               <tr>
-                {["Nombre", "Tipo", "Email", "Teléfono", "Facturas"].map(h => (
+                {["Nombre", "Tipo", "Email", "Teléfono", "Facturas", ...(canEdit ? ["Acciones"] : [])].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                 ))}
               </tr>
@@ -126,7 +144,9 @@ export function ContactList({ contacts, orgId, token, canEdit, totalPages, curre
               {contacts.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{c.name}</p>
+                    <Link href={`/dashboard/contacts/${c.id}`} className="text-sm font-medium text-slate-900 hover:text-indigo-600 dark:text-slate-100 dark:hover:text-indigo-400">
+                      {c.name}
+                    </Link>
                     {c.address && <p className="text-xs text-slate-400 truncate max-w-xs">{c.address}</p>}
                   </td>
                   <td className="px-4 py-3">
@@ -137,6 +157,38 @@ export function ContactList({ contacts, orgId, token, canEdit, totalPages, curre
                   <td className="px-4 py-3 text-sm text-slate-500">{c.email ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{c.phone ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{c.invoiceCount}</td>
+                  {canEdit && (
+                    <td className="px-4 py-3">
+                      {confirmDeleteId === c.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">¿Eliminar?</span>
+                          <button
+                            onClick={() => handleDelete(c.id)}
+                            disabled={isDeleting}
+                            className="rounded px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                          >
+                            Sí
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={isDeleting}
+                            className="rounded px-2 py-1 text-xs text-slate-600 border border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(c.id)}
+                          disabled={c.invoiceCount > 0}
+                          title={c.invoiceCount > 0 ? "No se puede eliminar: tiene facturas asociadas" : undefined}
+                          className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-900/30"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
